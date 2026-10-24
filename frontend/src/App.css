@@ -572,3 +572,14 @@ input[type="file"]::file-selector-button {
   width: auto;
   margin: 0;
 }
+
+.saved-case-list {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.saved-case-list > button {
+  text-align: left;
+  overflow-wrap: anywhere;
+}

@@ -1,3 +1,4 @@
+import SavedCases from './SavedCases'
 import ConnectionStatus from './ConnectionStatus'
 import Inventory from './Inventory'
 
@@ -124,6 +125,7 @@ function App() {
             </p>
           )}
         </form></div>{started && <EvidenceUpload key={caseId} caseId={caseId} room={room} />}
+      <SavedCases />
       <Inventory /></main>
     </div>
   )
