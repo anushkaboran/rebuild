@@ -1,3 +1,5 @@
+import ResolveFinding from './ResolveFinding'
+
 export type Finding = {
   finding_id: string
   type: string
@@ -21,9 +23,12 @@ type Props = {
   itemId: string
   findings: Finding[]
   questions: Question[]
+  resolutions: Record<string, string>
+  onResolve: (id: string, reason: string) => void
+  onUndo: (id: string) => void
 }
 
-export default function ReviewFindings({ itemId, findings, questions }: Props) {
+export default function ReviewFindings({ itemId, findings, questions, resolutions, onResolve, onUndo }: Props) {
   const relevant = findings.filter(finding =>
     finding.item_ids.includes(itemId) || finding.item_ids.length === 0
   )
@@ -40,12 +45,26 @@ export default function ReviewFindings({ itemId, findings, questions }: Props) {
       {relevant.map(finding => (
         <details key={`${itemId}-${finding.finding_id}`} className="finding">
           <summary>
-            {finding.status === 'resolved' ? 'Resolved' : 'Needs review'}
+            {(finding.status === 'resolved' || resolutions[finding.finding_id]) ? 'Resolved' : 'Needs review'}
             {' · '}{finding.type.replaceAll('_', ' ')}
             {' · '}{finding.finding_id}
           </summary>
           <p>{finding.explanation}</p>
           <small>Evidence: {finding.evidence_ids.join(', ') || 'None'}</small>
+          {resolutions[finding.finding_id] && (
+            <div className="notice">
+              <p>Local review decision: {resolutions[finding.finding_id]}</p>
+              <button type="button" className="remove-file" onClick={() => onUndo(finding.finding_id)}>
+                Undo resolution
+              </button>
+            </div>
+          )}
+          {finding.status !== 'resolved' && !resolutions[finding.finding_id] && (
+            <ResolveFinding
+              key={itemId + finding.finding_id}
+              onResolve={reason => onResolve(finding.finding_id, reason)}
+            />
+          )}
           {finding.resolution_reason && (
             <p className="notice">{finding.resolution_reason}</p>
           )}

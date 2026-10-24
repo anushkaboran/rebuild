@@ -33,6 +33,7 @@ type Result = {
 }
 
 export default function Inventory() {
+  const [resolutions, setResolutions] = useState<Record<string, string>>({})
   const [corrections, setCorrections] = useState<Record<string, Record<string, string>>>({})
   const [result, setResult] = useState<Result | null>(null)
   const [selectedId, setSelectedId] = useState('')
@@ -146,7 +147,18 @@ export default function Inventory() {
                   </details>
                 )
               })}
-            <ReviewFindings itemId={selected.item_id} findings={result.findings} questions={result.questions} /></article>
+            <ReviewFindings
+      itemId={selected.item_id}
+      findings={result.findings}
+      questions={result.questions}
+      resolutions={resolutions}
+      onResolve={(id, reason) => setResolutions(current => ({ ...current, [id]: reason }))}
+      onUndo={id => setResolutions(current => {
+        const next = { ...current }
+        delete next[id]
+        return next
+      })}
+    /></article>
           )}
         </>
       )}
