@@ -1,6 +1,6 @@
 # Rebuild API contract
 
-**Status:** v0.8.0 — owned by Person 3 (backend). URL-based evidence + recovery of already-completed CREAO runs.
+**Status:** v0.8.2 — owned by Person 3 (backend). URL-based evidence + recovery of already-completed CREAO runs.
 **Base URL (local):** `http://localhost:8000`
 **Machine-readable schema:** `GET /openapi.json` · interactive docs at `/docs`
 
@@ -960,6 +960,43 @@ the code and message (e.g. `RESEARCH_INVALID_RESULT: item_ref mismatch…`).
 `signed evidence URLs are never returned` — only `room_photo_upload_ids` inside
 `input_summary`. The full `input_snapshot` is stored server-side for audit.
 
+### Recovery and diagnostics
+
+A completed CREAO run can be re-imported without starting a new run:
+
+```http
+POST /api/research/{research_id}/recover
+{ "creao_run_id": "11626040-0ac3-44db-84cd-59c6f22279cc" }
+```
+
+`200` → `{ run, candidates, source, already_recovered }`. The backend record is
+marked `complete` only after the artifact validates **and** (with
+`STORE_BACKEND=spacetime`) persists. Candidates are deterministic per run, so a
+repeated recovery never duplicates them.
+
+`GET /api/research/{research_id}/diagnostics` returns a **sanitized** view of the
+CREAO run's output structure — status, `result` field names, and one row per
+artifact with `title`, `type`, `has_url`, `bytes`, `json`, `keys`, `error`.
+It never contains URLs, headers or credentials.
+
+### Artifact errors (coded)
+
+| Code | Meaning |
+|---|---|
+| `RESEARCH_NO_ARTIFACTS` | the run response had no artifact metadata at all |
+| `RESEARCH_ARTIFACT_NOT_FOUND` | artifacts exist, none is a candidates document |
+| `RESEARCH_ARTIFACT_AUTH` | the artifact endpoint rejected the credential (401/403) |
+| `RESEARCH_ARTIFACT_DOWNLOAD` | download/redirect failure, or empty body |
+| `RESEARCH_INVALID_JSON` | a candidate document was found but is not JSON |
+| `RESEARCH_INVALID_RESULT` | JSON found but fails the contract (item_ref, count, status, URL) |
+| `RESEARCH_PERSIST_FAILED` | validated, but SpacetimeDB persistence failed |
+
+**Artifact discovery does not depend on the title.** Every artifact the run
+returns is probed — `result.artifacts`, `result.outputs`, `result.files`,
+`result.attachments` — and the first body that parses as JSON *and* matches
+`{item_ref, candidates}` wins. A title like `"Outputs"` with the file name only in
+the artifact `id` therefore still resolves.
+
 ### Agent inputs (built server-side)
 
 | Field | Type | Source |
@@ -983,8 +1020,22 @@ The run **fails** (never fabricates) when:
 5. the document is malformed or an artifact is unreadable.
 
 An **empty** `candidates` array is valid and means "no matches". Missing values
-stay `null`. `queries_run` and `limitations` are preserved. Re-importing the same
-run is idempotent (candidate ids are deterministic).
+stay `null`. Re-importing the same run is idempotent (candidate ids are
+deterministic).
+
+**Shapes preserved verbatim** (verified against the real run
+`11626040-0ac3-44db-84cd-59c6f22279cc`):
+
+| Field | Actual shape |
+|---|---|
+| `matching_features` / `differing_features` | arrays of strings |
+| `missing_verification` | **array** of strings (not a single string) |
+| `queries_run` | array of **objects** `{"query": "...", "tool": "web_search" \| "web_fetch"}` |
+| `currency` | `null` when the agent could not determine it — never defaulted |
+| `price_as_displayed` | string exactly as the page rendered it (`"€ 349"`, `"from $2,250.00"`) |
+| `source_accessed_at` | ISO timestamp as returned — never corrected |
+
+`queries_run` entries keep their object form; they are not stringified.
 
 ---
 
@@ -1131,6 +1182,8 @@ which is normalised to `unknown`).
 
 | Version | Change |
 |---|---|
+| 0.8.2 | Preserve the real document's shapes: `missing_verification` stays an array, `queries_run` keeps its `{query, tool}` objects, null currency untouched. Regression test uses the live `research-candidates.json` byte-for-byte. |
+| 0.8.1 | Artifact retrieval no longer trusts the artifact title (probes every artifact container and validates by content); `POST /api/research/{id}/recover` re-imports a completed CREAO run without a new run; `/diagnostics` reports the sanitized run structure; coded artifact errors. |
 | 0.8.0 | Researcher aligned to Person 1's confirmed contract: canonical `/api/items/{id}/research` + `/api/research/{id}` routes, explicit `region_currency`, exact input keys, strict `research-candidates.json` validation (max 3, fixed status, item_ref match), active-run dedupe, redacted input snapshot. |
 | 0.7.0 | Researcher agent integration: separate `CREAO_RESEARCHER_API_KEY`/App ID, async research runs per item, `research-candidates.json` validation, unverified candidates isolated from inventory, persisted in SpacetimeDB. Also made `brand`/`model`/`purchase_date`/`purchase_price` human-correctable. |
 | 0.6.4 | `review_answers` narrowed to the exact v1.3.1 contract (`question_id`, `answer`, `answered_by` as a JSON string); saved timestamps/history still stored in SpacetimeDB. |

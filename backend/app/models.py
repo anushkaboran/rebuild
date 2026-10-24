@@ -316,7 +316,8 @@ class ResearchCandidate(BaseModel):
     product_url: Optional[str] = None
     matching_features: list[str] = Field(default_factory=list)
     differing_features: list[str] = Field(default_factory=list)
-    missing_verification: Optional[str] = None
+    # The agent returns an array of strings; preserved verbatim.
+    missing_verification: list[str] = Field(default_factory=list)
     price_as_displayed: Optional[str] = None
     currency: Optional[str] = None
     source_accessed_at: Optional[str] = None
@@ -338,8 +339,9 @@ class ResearchRun(BaseModel):
     region_currency: Optional[str] = None
     candidate_ids: list[str] = Field(default_factory=list)
     candidates_valid: int = 0
-    # Preserved from the agent result.
-    queries_run: list[str] = Field(default_factory=list)
+    # Preserved from the agent result. Entries are usually
+    # {"query": "...", "tool": "web_search"} objects; kept as returned.
+    queries_run: list[Any] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
     # Exact inputs sent to the agent. Never serialised: it contains signed URLs.
     input_snapshot: Optional[dict[str, Any]] = Field(default=None, exclude=True)
@@ -353,6 +355,19 @@ class ResearchRun(BaseModel):
 class ResearchRunResponse(BaseModel):
     run: ResearchRun
     candidates: list[ResearchCandidate] = Field(default_factory=list)
+
+
+class ResearchRecoverRequest(BaseModel):
+    """Re-import an already-completed CREAO run. Starts no new run."""
+
+    creao_run_id: str = Field(min_length=1, max_length=120)
+
+
+class ResearchRecoverResponse(BaseModel):
+    run: ResearchRun
+    candidates: list[ResearchCandidate] = Field(default_factory=list)
+    source: str
+    already_recovered: bool = False
 
 
 class ResearchStartRequest(BaseModel):

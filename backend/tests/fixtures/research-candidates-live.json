@@ -1,0 +1,78 @@
+
+{
+  "item_ref": "itm_995ed6391131",
+  "candidates": [
+    {
+      "candidate_id": "CAND-1",
+      "brand": "IKEA",
+      "model": "EKTORP",
+      "product_name": "EKTORP Armchair, Kilanda light beige",
+      "product_url": "https://www.ikea.com/ie/en/p/ektorp-armchair-kilanda-light-beige-s79552102/",
+      "matching_features": [
+        "Rolled arm profile confirmed on the product page.",
+        "Single loose, reversible back cushion confirmed ('the reversible back cushion of polyester fibre').",
+        "Separate loose seat cushion confirmed (distinct high-resilience foam seat cushion).",
+        "Fully fabric-upholstered arms and frame with a removable tailored cover, no exposed wood arm caps.",
+        "Cover appears to close at the base with a skirted/tailored band, consistent with the fabric panel visible at the chair's base in the photo."
+      ],
+      "differing_features": [
+        "EKTORP arms read as wide, plush and heavily rounded; the arm roll in the photo appears relatively slim and higher relative to the back.",
+        "EKTORP back cushion is a soft fibre-filled cushion with pronounced 'wings'; the photo's back cushion reads as a flatter, more squared loose cushion."
+      ],
+      "missing_verification": [
+        "No dimensions could be taken from the photo (chair cut off by right and bottom frame edges).",
+        "Chair base (skirt versus hidden legs, plinth, casters) is at or below the water surface and cannot be seen.",
+        "Fabric cannot be matched to a specific IKEA cover; colour and texture are unreadable under water-stained lighting.",
+        "No label, tag, seam count, piping detail or cushion zip was legible."
+      ],
+      "price_as_displayed": "€ 349",
+      "currency": null,
+      "source_accessed_at": "2026-01-26T00:00:00Z",
+      "status": "unverified_possible_match"
+    },
+    {
+      "candidate_id": "CAND-2",
+      "brand": "Ethan Allen",
+      "model": "Bennett Roll-Arm Chair",
+      "product_name": "Bennett Roll-Arm Chair (Item 207881)",
+      "product_url": "https://www.ethanallen.com/en_US/shop-furniture-living-room-chairs-fabric/bennett-roll-arm-chair/207881.html",
+      "matching_features": [
+        "Page states 'plush rolled arm and loose back and seat cushions', matching the rolled arm and two loose cushions visible in the photo.",
+        "Custom upholstery in any fabric, so a cover matching the adjacent sofa is possible for this frame.",
+        "Traditional club/roll-arm silhouette consistent with the chair in the photo."
+      ],
+      "differing_features": [
+        "Page lists tapered exposed wood legs; the photo chair shows no exposed legs above the waterline.",
+        "Listed arm height (25 in) and seat height (22 in) suggest a taller, shallower seat than the low, deep profile that appears in the photo."
+      ],
+      "missing_verification": [
+        "Fabric identity cannot be confirmed (hundreds of available fabrics; photo fabric unreadable).",
+        "Whether legs are hidden below the waterline is unknown, so the leg difference cannot be resolved.",
+        "No dimensions, label, nailhead or welt detail could be read from the photo."
+      ],
+      "price_as_displayed": "from $2,250.00",
+      "currency": null,
+      "source_accessed_at": "2026-01-26T00:00:00Z",
+      "status": "unverified_possible_match"
+    }
+  ],
+  "queries_run": [
+    { "query": "upholstered armchair rolled arms loose back cushion loose seat cushion skirted base beige textured fabric", "tool": "web_search" },
+    { "query": "\"roll arm\" club chair loose back cushion fabric slipcover armchair product page", "tool": "web_search" },
+    { "query": "armchair single loose back cushion skirted base no exposed legs roll arm textured beige upholstery living room chair", "tool": "web_search" },
+    { "query": "ikea.com/us/en/p/ektorp-armchair-kilanda-light-beige-s79552102/ (redirected to products index, no product data)", "tool": "web_fetch" },
+    { "query": "ethanallen.com Bennett Roll-Arm Chair 207881", "tool": "web_fetch" },
+    { "query": "ikea.com/ie/en/p/ektorp-armchair-kilanda-light-beige-s79552102", "tool": "web_fetch" },
+    { "query": "livingspaces.com Ashton Fog skirted slipcover club chair 355779", "tool": "web_fetch" }
+  ],
+  "limitations": [
+    "Only one room photo was provided (ev_001); the chair appears once in the right foreground, cut off by the right and bottom edges.",
+    "No hard discriminator was captured: no label, mark, hardware, nailhead, tufting or measurable dimension. Every visible attribute is a construction-type feature shared by many roll-arm skirted club chairs, so neither candidate can be treated as an identification.",
+    "The chair's base is at or just below the water surface, so skirt versus legs/plinth/casters cannot be determined.",
+    "Fabric colour and weave are degraded by water staining, dim warm lighting and low resolution; no fabric match was possible.",
+    "Region/currency not provided, so region is unknown and every currency field is null; price strings are shown exactly as the pages rendered them.",
+    "Living Spaces 'Ashton/Ashlyn' skirted slipcover club chair ($575) looked like a strong structural match but its page returned an HTTP error and could not be read, so it was not added.",
+    "The IKEA US EKTORP URL redirected to the products index; features and price were verified on the IKEA Ireland page instead.",
+    "Evidence context JSON parsed successfully (1 source, no human corrections); it adds no product-identifying detail."
+  ]
+}

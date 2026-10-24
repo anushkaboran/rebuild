@@ -325,7 +325,8 @@ def _research_candidate_payload(c: ResearchCandidate) -> dict[str, Any]:
         "product_url": c.product_url,
         "matching_features": c.matching_features,
         "differing_features": c.differing_features,
-        "missing_verification": c.missing_verification,
+        # Stored as JSON inside the existing text column (no migration needed).
+        "missing_verification": json.dumps(c.missing_verification),
         "price_as_displayed": c.price_as_displayed,
         "currency": c.currency,
         "source_accessed_at": c.source_accessed_at,
@@ -424,6 +425,21 @@ def _dt(value: Any) -> datetime:
         return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except ValueError:
         return utcnow()
+
+
+def _text_list(value: Any) -> list:
+    """Read a list that may have been stored as JSON, plain text, or empty."""
+    if not value:
+        return []
+    if isinstance(value, list):
+        return value
+    try:
+        parsed = json.loads(value)
+    except (TypeError, json.JSONDecodeError):
+        return [str(value)]
+    if isinstance(parsed, list):
+        return [str(entry) for entry in parsed]
+    return [str(parsed)]
 
 
 def _json(value: Any, default: Any) -> Any:
@@ -654,7 +670,7 @@ def hydrate() -> dict[str, int]:
             product_url=row.get("product_url") or None,
             matching_features=_json(row.get("matching_features_json"), []),
             differing_features=_json(row.get("differing_features_json"), []),
-            missing_verification=row.get("missing_verification") or None,
+            missing_verification=_text_list(row.get("missing_verification")),
             price_as_displayed=row.get("price_as_displayed") or None,
             currency=row.get("currency") or None,
             source_accessed_at=row.get("source_accessed_at") or None,

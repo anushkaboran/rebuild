@@ -25,6 +25,8 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Response, status
 from ..deps import get_case_or_404, get_item_or_404
 from ..models import (
     InvestigationStatus,
+    ResearchRecoverRequest,
+    ResearchRecoverResponse,
     ResearchRun,
     ResearchRunResponse,
     ResearchStartRequest,
@@ -94,6 +96,65 @@ def get_research(research_id: str) -> ResearchRunResponse:
 def list_item_research(item_id: str) -> list[ResearchRun]:
     get_item_or_404(item_id)
     return store.list_research_runs_by_item(item_id)
+
+
+@router.post(
+    "/research/{research_id}/recover",
+    response_model=ResearchRecoverResponse,
+    summary="Re-import an already-completed CREAO run (no new run is started)",
+    responses={
+        404: {"description": "Unknown backend research record"},
+        409: {"description": "The CREAO run has not completed"},
+        502: {"description": "Artifact or run could not be read"},
+    },
+)
+async def recover_research(
+    research_id: str, body: ResearchRecoverRequest
+) -> ResearchRecoverResponse:
+    before = store.research_runs.get(research_id)
+    already = bool(
+        before is not None
+        and before.status == InvestigationStatus.complete
+        and before.agent_run_id == body.creao_run_id
+        and before.candidate_ids
+    )
+
+    try:
+        run, source = await researcher.recover_run(research_id, body.creao_run_id)
+    except researcher.ResearchError as exc:
+        raise _error(exc) from exc
+    body_out = ResearchRecoverResponse(
+        run=run, candidates=researcher.candidates_for(run.id), source=source,
+        already_recovered=already,
+    )
+    events.publish("research.completed", run.case_id, {"research_run": run.model_dump(mode="json")})
+    return body_out
+
+
+@router.get(
+    "/research/{research_id}/diagnostics",
+    summary="Sanitized view of the CREAO run's output structure (no URLs, no secrets)",
+    include_in_schema=False,
+)
+async def research_diagnostics(research_id: str) -> dict:
+    run = store.research_runs.get(research_id)
+    if run is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "RESEARCH_NOT_FOUND", "message": f"Research run '{research_id}' was not found."},
+        )
+    if not run.agent_run_id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "RESEARCH_NO_AGENT_RUN",
+                "message": "This research record has no CREAO run id yet; supply one via /recover.",
+            },
+        )
+    try:
+        return await researcher.diagnose_run(run.agent_run_id)
+    except researcher.ResearchError as exc:
+        raise _error(exc) from exc
 
 
 # --------------------------------------------------------------------------- #

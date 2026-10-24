@@ -253,6 +253,7 @@ def test_successful_run_returns_candidates_queries_and_limitations(client):
     assert candidate["product_name"] == "STRANDMON wing chair"
     assert candidate["product_url"].startswith("https://")
     assert candidate["matching_features"] == ["wing back", "deep brown upholstery"]
+    assert candidate["missing_verification"] == ["Measurements not confirmed against the photo."]
     assert candidate["price_as_displayed"] == "$349.00"
     assert candidate["currency"] == "USD"
     assert candidate["status"] == "unverified_possible_match"
@@ -290,7 +291,7 @@ def test_run_records_a_redacted_input_snapshot(client):
 @pytest.mark.parametrize(
     "setup, expected",
     [
-        (lambda: setattr(FakeClient, "malformed", True), "no readable research-candidates.json"),
+        (lambda: setattr(FakeClient, "malformed", True), "not valid JSON"),
         (lambda: setattr(FakeClient, "wrong_item_ref", True), "item_ref mismatch"),
         (
             lambda: setattr(FakeClient, "candidates", [copy.deepcopy(CANDIDATE)] * 4),
