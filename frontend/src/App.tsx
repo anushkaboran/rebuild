@@ -1,3 +1,4 @@
+import ConnectionStatus from './ConnectionStatus'
 import Inventory from './Inventory'
 
 import { useState } from 'react'
@@ -9,12 +10,55 @@ function App() {
   const [description, setDescription] = useState('')
   const [room, setRoom] = useState('Living room')
   const [started, setStarted] = useState(false)
+  const [caseId, setCaseId] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [caseError, setCaseError] = useState('')
+
+  async function createCase() {
+    if (creating) return
+    if (!description.trim()) {
+      setCaseError('Please describe the incident.')
+      return
+    }
+
+    setCreating(true)
+    setCaseError('')
+
+    try {
+      const response = await fetch('/api/cases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: room + ' recovery record',
+          disaster_type: 'flood',
+          notes: description.trim(),
+          created_by: 'Lasya',
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Case creation failed: HTTP ' + response.status)
+      }
+
+      const created = await response.json()
+      if (typeof created.id !== 'string') {
+        throw new Error('Unexpected response from backend.')
+      }
+
+      setCaseId(created.id)
+      setStarted(true)
+    } catch (error) {
+      setCaseError(error instanceof Error ? error.message : 'Cannot reach backend.')
+    } finally {
+      setCreating(false)
+    }
+  }
 
   return (
     <div className="app">
       <header className="header">
         <a className="brand" href="/">rebuild<span>.</span></a>
-        <span className="prototype">Local prototype</span>
+        <ConnectionStatus />
       </header>
 
       <main className="welcome">
@@ -34,7 +78,7 @@ function App() {
           className="case-form"
           onSubmit={(event) => {
             event.preventDefault()
-            setStarted(true)
+            void createCase()
           }}
         >
           <p className="eyebrow">LET’S GET STARTED</p><h2>Tell us about your room</h2>
@@ -66,16 +110,20 @@ function App() {
             <option>Other</option>
           </select>
 
-          <button type="submit">Continue →</button>
+          <button type="submit" disabled={creating || started}>
+            {creating ? 'Creating case…' : started ? 'Case created' : 'Continue →'}
+          </button>
+          {caseError && <p role="alert">{caseError}</p>}
           <p className="helper">Start with one room. You can review every proposed detail.</p>
 
           {started && (
             <p className="notice" role="status">
-              Your {room.toLowerCase()} draft is ready in this page.
-              Uploads come next. Nothing has been sent or saved to a server.
+              Case created: {caseId}. Your description is saved in the local backend.
+              Files have not been uploaded. Restarting the backend in memory
+              mode clears the case.
             </p>
           )}
-        </form></div>{started && <EvidenceUpload />}
+        </form></div>{started && <EvidenceUpload key={caseId} caseId={caseId} room={room} />}
       <Inventory /></main>
     </div>
   )

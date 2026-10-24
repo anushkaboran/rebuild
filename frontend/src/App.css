@@ -540,3 +540,35 @@ input[type="file"]::file-selector-button {
   border-color: #697495;
   color: #e0e5f5;
 }
+
+/* Keep evidence filenames and upload status readable. */
+.file-list > li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 16px 0;
+}
+
+.file-list > li > span:first-of-type {
+  flex: 1 1 180px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.file-list > li > select {
+  flex: 0 1 260px;
+  width: 260px;
+  max-width: 100%;
+  margin: 0;
+}
+
+.file-list > li > span:last-child {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.file-list > li > .remove-file {
+  width: auto;
+  margin: 0;
+}
