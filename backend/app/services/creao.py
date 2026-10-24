@@ -480,14 +480,17 @@ def build_inputs(
 class CreaoAppClient:
     """App-scoped API Trigger client (agent.creao.ai/api/v1)."""
 
-    def __init__(self) -> None:
+    def __init__(self, app_id: str | None = None, api_key: str | None = None) -> None:
+        # Defaults keep every existing Investigator call site unchanged; the
+        # Researcher passes its own app id + credential.
         self._base = settings.creao_app_base_url.rstrip("/")
-        self._app = settings.creao_app_id
+        self._app = app_id or settings.creao_app_id
+        self._api_key = api_key or settings.creao_app_api_key
         self._api_host = urlparse(self._base).netloc
         self._client = httpx.AsyncClient(
             timeout=settings.creao_http_timeout_seconds,
             headers={
-                "Authorization": f"Bearer {settings.creao_app_api_key}",
+                "Authorization": f"Bearer {self._api_key}",
                 "Accept": "application/json",
                 "User-Agent": "rebuild-backend/0.3",
             },

@@ -483,3 +483,61 @@ def test_reconciliation_state_and_evidence_ids_survive_restart(live):
     assert item["reconciliation"] == "matched"
     assert item["possible_match_item_id"] == "itm_older"
     assert item["agent_proposal"]["name"] == "Brown armchair, water stained"
+
+
+def test_research_run_and_candidates_survive_restart(live):
+    from app.models import Case, ResearchCandidate, ResearchRun
+
+    case_id = _unique("case")
+    run_id = _unique("rsch")
+    with TestClient(app) as client:
+        client.post("/api/cases", json={"title": "research restart"})
+        store.cases[case_id] = Case(id=case_id, title="research restart")
+        store.research_runs[run_id] = ResearchRun(
+            id=run_id,
+            case_id=case_id,
+            item_id="itm_x",
+            status="complete",
+            agent_run_id="creao-run-1",
+            app_id="a7260cbc-8253-4fa7-88d3-c644267e3221",
+            region_currency="USD",
+            candidate_ids=["rc_1"],
+            candidates_valid=1,
+            queries_run=["strandmon wing chair"],
+            limitations=["Listed prices are not purchase prices."],
+            input_summary={"item_ref": "itm_x", "region_currency": "USD"},
+        )
+        store.research_candidates["rc_1"] = ResearchCandidate(
+            id="rc_1",
+            candidate_id="cand_001",
+            run_id=run_id,
+            case_id=case_id,
+            item_id="itm_x",
+            brand="IKEA",
+            model="STRANDMON",
+            product_name="STRANDMON wing chair",
+            product_url="https://www.ikea.com/us/en/p/strandmon-wing-chair",
+            matching_features=["wing back"],
+            price_as_displayed="$349.00",
+            currency="USD",
+            status="unverified_possible_match",
+        )
+        spacetime_db.sync()
+
+    store.reset()
+    with TestClient(app) as client:
+        body = client.get(f"/api/research/{run_id}").json()
+
+    run = body["run"]
+    assert run["status"] == "complete"
+    assert run["region_currency"] == "USD"
+    assert run["queries_run"] == ["strandmon wing chair"]
+    assert run["limitations"]
+    assert run["input_summary"]["item_ref"] == "itm_x"
+
+    candidate = body["candidates"][0]
+    assert candidate["product_name"] == "STRANDMON wing chair"
+    assert candidate["status"] == "unverified_possible_match"
+    assert candidate["unverified"] is True
+    assert candidate["price_as_displayed"] == "$349.00"
+    assert candidate["matching_features"] == ["wing back"]

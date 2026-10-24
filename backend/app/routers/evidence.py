@@ -31,6 +31,10 @@ _PATCHABLE = {
     "estimated_value",
     "currency",
     "status",
+    "brand",
+    "model",
+    "purchase_date",
+    "purchase_price",
 }
 
 

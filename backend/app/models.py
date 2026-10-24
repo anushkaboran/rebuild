@@ -212,6 +212,11 @@ class EvidenceItemPatch(BaseModel):
     damage_level: Optional[DamageLevel] = None
     estimated_value: Optional[float] = Field(default=None, ge=0)
     currency: Optional[str] = Field(default=None, min_length=3, max_length=3)
+    # Agent-reported identity fields, correctable by a human reviewer.
+    brand: Optional[str] = Field(default=None, max_length=200)
+    model: Optional[str] = Field(default=None, max_length=200)
+    purchase_date: Optional[str] = Field(default=None, max_length=60)
+    purchase_price: Optional[str] = Field(default=None, max_length=60)
     status: Optional[ItemStatus] = None
     if_revision: Optional[int] = Field(default=None, ge=1)
     editor: str = Field(default="anonymous", max_length=120)
@@ -285,6 +290,81 @@ class Investigation(BaseModel):
     requested_by: str = "anonymous"
     created_at: datetime = Field(default_factory=utcnow)
     finished_at: Optional[datetime] = None
+
+
+# --------------------------------------------------------------------------- #
+# Researcher (Rebuild Product Researcher — confirmed contract)
+# --------------------------------------------------------------------------- #
+CANDIDATE_STATUS = "unverified_possible_match"
+
+
+class ResearchCandidate(BaseModel):
+    """One possible product match, exactly as the Researcher returns it.
+
+    Suggestions only: nothing here is ever copied into an inventory item.
+    """
+
+    # Backend id (deterministic per run + candidate) and the agent's own id.
+    id: str
+    candidate_id: Optional[str] = None
+    run_id: str
+    case_id: str
+    item_id: str
+    brand: Optional[str] = None
+    model: Optional[str] = None
+    product_name: Optional[str] = None
+    product_url: Optional[str] = None
+    matching_features: list[str] = Field(default_factory=list)
+    differing_features: list[str] = Field(default_factory=list)
+    missing_verification: Optional[str] = None
+    price_as_displayed: Optional[str] = None
+    currency: Optional[str] = None
+    source_accessed_at: Optional[str] = None
+    status: str = CANDIDATE_STATUS
+    unverified: bool = True
+    created_at: datetime = Field(default_factory=utcnow)
+
+
+class ResearchRun(BaseModel):
+    id: str
+    case_id: str
+    item_id: str
+    status: InvestigationStatus = InvestigationStatus.queued
+    mode: Literal["mock", "live"] = "live"
+    app_id: Optional[str] = None
+    agent_run_id: Optional[str] = None
+    thread_id: Optional[str] = None
+    error: Optional[str] = None
+    region_currency: Optional[str] = None
+    candidate_ids: list[str] = Field(default_factory=list)
+    candidates_valid: int = 0
+    # Preserved from the agent result.
+    queries_run: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+    # Exact inputs sent to the agent. Never serialised: it contains signed URLs.
+    input_snapshot: Optional[dict[str, Any]] = Field(default=None, exclude=True)
+    # Redacted, public view of the same inputs (no URLs, no credentials).
+    input_summary: dict[str, Any] = Field(default_factory=dict)
+    requested_by: str = "anonymous"
+    created_at: datetime = Field(default_factory=utcnow)
+    finished_at: Optional[datetime] = None
+
+
+class ResearchRunResponse(BaseModel):
+    run: ResearchRun
+    candidates: list[ResearchCandidate] = Field(default_factory=list)
+
+
+class ResearchStartRequest(BaseModel):
+    """`region_currency` is supplied explicitly; the backend never guesses one."""
+
+    region_currency: Optional[str] = Field(default=None, min_length=3, max_length=3)
+    requested_by: str = Field(default="anonymous", max_length=120)
+
+    @field_validator("region_currency")
+    @classmethod
+    def _upper(cls, v: Optional[str]) -> Optional[str]:
+        return v.upper() if v else v
 
 
 # --------------------------------------------------------------------------- #
@@ -554,6 +634,8 @@ class Event(BaseModel):
         "item.created",
         "item.updated",
         "comment.created",
+        "research.started",
+        "research.completed",
     ]
     case_id: str
     payload: dict[str, Any] = Field(default_factory=dict)

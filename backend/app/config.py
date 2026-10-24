@@ -8,6 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -55,6 +56,20 @@ class Settings(BaseSettings):
     # Server-side only — never expose to the browser.
     creao_app_api_key: str = ""
     creao_app_base_url: str = "https://agent.creao.ai/api/v1"
+
+    # --- second agent: Rebuild Product Researcher (own app + credential) ---
+    # Canonical names are CREAO_RESEARCH_*; the earlier CREAO_RESEARCHER_* names
+    # are still accepted so an existing .env keeps working.
+    creao_research_app_id: str = Field(
+        default="a7260cbc-8253-4fa7-88d3-c644267e3221",
+        validation_alias=AliasChoices("CREAO_RESEARCH_APP_ID", "CREAO_RESEARCHER_APP_ID"),
+    )
+    creao_research_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("CREAO_RESEARCH_API_KEY", "CREAO_RESEARCHER_API_KEY"),
+    )
+    creao_research_poll_interval_seconds: float = 3.0
+    creao_research_timeout_seconds: float = 240.0
 
     # How evidence reaches the agent. Person 2 verified that the app-scoped
     # trigger accepts **public HTTPS URLs** in `room_photos` / `receipt_files`.
@@ -142,6 +157,26 @@ class Settings(BaseSettings):
             missing.append("CREAO_APP_ID")
         if not self.creao_app_base_url:
             missing.append("CREAO_APP_BASE_URL")
+        return missing
+
+    @property
+    def research_configured(self) -> bool:
+        return bool(
+            self.creao_live
+            and self.creao_research_app_id
+            and self.creao_research_api_key
+            and self.creao_app_base_url
+        )
+
+    @property
+    def research_missing_settings(self) -> list[str]:
+        if not self.creao_live:
+            return []
+        missing = []
+        if not self.creao_research_api_key:
+            missing.append("CREAO_RESEARCH_API_KEY")
+        if not self.creao_research_app_id:
+            missing.append("CREAO_RESEARCH_APP_ID")
         return missing
 
     @property

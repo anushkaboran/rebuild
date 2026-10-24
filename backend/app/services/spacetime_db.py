@@ -40,6 +40,8 @@ from ..models import (
     DecisionEvent,
     Finding,
     Question,
+    ResearchCandidate,
+    ResearchRun,
     DamageLevel,
     EvidenceItem,
     Investigation,
@@ -287,6 +289,51 @@ def _decision_payload(event: DecisionEvent) -> dict[str, Any]:
     }
 
 
+def _research_run_payload(run: ResearchRun) -> dict[str, Any]:
+    return {
+        "id": run.id,
+        "case_id": run.case_id,
+        "item_id": run.item_id,
+        "status": run.status.value,
+        "mode": run.mode,
+        "app_id": run.app_id,
+        "agent_run_id": run.agent_run_id,
+        "thread_id": run.thread_id,
+        "error": run.error,
+        "region_currency": run.region_currency,
+        "input_summary": run.input_summary,
+        "queries_run": run.queries_run,
+        "limitations": run.limitations,
+        "candidate_ids": run.candidate_ids,
+        "candidates_valid": run.candidates_valid,
+        "requested_by": run.requested_by,
+        "created_at": _iso(run.created_at),
+        "finished_at": _iso(run.finished_at),
+    }
+
+
+def _research_candidate_payload(c: ResearchCandidate) -> dict[str, Any]:
+    return {
+        "id": c.id,
+        "candidate_id": c.candidate_id,
+        "run_id": c.run_id,
+        "case_id": c.case_id,
+        "item_id": c.item_id,
+        "brand": c.brand,
+        "model": c.model,
+        "product_name": c.product_name,
+        "product_url": c.product_url,
+        "matching_features": c.matching_features,
+        "differing_features": c.differing_features,
+        "missing_verification": c.missing_verification,
+        "price_as_displayed": c.price_as_displayed,
+        "currency": c.currency,
+        "source_accessed_at": c.source_accessed_at,
+        "status": c.status,
+        "created_at": _iso(c.created_at),
+    }
+
+
 def _comment_payload(comment: Comment) -> dict[str, Any]:
     return {
         "id": comment.id,
@@ -315,6 +362,8 @@ _PUSHERS = {
     "finding": ("upsert_finding", _finding_payload),
     "question": ("upsert_question", _question_payload),
     "decision_event": ("upsert_decision_event", _decision_payload),
+    "research_run": ("upsert_research_run", _research_run_payload),
+    "research_candidate": ("upsert_research_candidate", _research_candidate_payload),
 }
 
 
@@ -335,6 +384,8 @@ def sync() -> dict[str, int]:
         ("finding", store.findings.values()),
         ("question", store.questions.values()),
         ("decision_event", store.decision_events.values()),
+        ("research_run", store.research_runs.values()),
+        ("research_candidate", store.research_candidates.values()),
     ]
 
     try:
@@ -565,6 +616,54 @@ def hydrate() -> dict[str, int]:
         )
     counts["decision_events"] = len(decisions)
 
+    research_runs: dict[str, ResearchRun] = {}
+    for row in _rows("research_run"):
+        research_runs[row["id"]] = ResearchRun(
+            id=row["id"],
+            case_id=row["case_id"],
+            item_id=row["item_id"],
+            status=InvestigationStatus(row.get("status") or "queued"),
+            mode=row.get("mode") or "live",
+            app_id=row.get("app_id") or None,
+            agent_run_id=row.get("agent_run_id") or None,
+            thread_id=row.get("thread_id") or None,
+            error=row.get("error") or None,
+            region_currency=row.get("region_currency") or None,
+            input_summary=_json(row.get("input_summary_json"), {}),
+            queries_run=_json(row.get("queries_run_json"), []),
+            limitations=_json(row.get("limitations_json"), []),
+            candidate_ids=_json(row.get("candidate_ids_json"), []),
+            candidates_valid=int(row.get("candidates_valid") or 0),
+            requested_by=row.get("requested_by") or "anonymous",
+            created_at=_dt(row.get("created_at")),
+            finished_at=_dt(row.get("finished_at")) if row.get("finished_at") else None,
+        )
+    counts["research_runs"] = len(research_runs)
+
+    research_candidates: dict[str, ResearchCandidate] = {}
+    for row in _rows("research_candidate"):
+        research_candidates[row["id"]] = ResearchCandidate(
+            id=row["id"],
+            run_id=row["run_id"],
+            case_id=row["case_id"],
+            item_id=row["item_id"],
+            candidate_id=row.get("candidate_id") or None,
+            brand=row.get("brand") or None,
+            model=row.get("model") or None,
+            product_name=row.get("product_name") or None,
+            product_url=row.get("product_url") or None,
+            matching_features=_json(row.get("matching_features_json"), []),
+            differing_features=_json(row.get("differing_features_json"), []),
+            missing_verification=row.get("missing_verification") or None,
+            price_as_displayed=row.get("price_as_displayed") or None,
+            currency=row.get("currency") or None,
+            source_accessed_at=row.get("source_accessed_at") or None,
+            status=row.get("status") or "unverified_possible_match",
+            unverified=True,
+            created_at=_dt(row.get("created_at")),
+        )
+    counts["research_candidates"] = len(research_candidates)
+
     comments: dict[str, Comment] = {}
     for row in _rows("comment"):
         comments[row["id"]] = Comment(
@@ -587,6 +686,8 @@ def hydrate() -> dict[str, int]:
         store.findings.update(findings)
         store.questions.update(questions)
         store.decision_events.update(decisions)
+        store.research_runs.update(research_runs)
+        store.research_candidates.update(research_candidates)
 
     for obj in (
         list(cases.values())
@@ -598,6 +699,8 @@ def hydrate() -> dict[str, int]:
         + list(findings.values())
         + list(questions.values())
         + list(decisions.values())
+        + list(research_runs.values())
+        + list(research_candidates.values())
     ):
         payload = _PUSHERS[_table_for(obj)][1](obj)
         _synced[obj.id] = _hash(payload)
@@ -628,6 +731,10 @@ def _table_for(obj: Any) -> str:
         return "question"
     if isinstance(obj, DecisionEvent):
         return "decision_event"
+    if isinstance(obj, ResearchRun):
+        return "research_run"
+    if isinstance(obj, ResearchCandidate):
+        return "research_candidate"
     raise TypeError(type(obj))
 
 

@@ -44,6 +44,8 @@ metadata and the storage reference only.
 | `finding` / `question` | agent findings and open questions |
 | `comment` | case/item discussion |
 | `task` | missing-evidence work items with **ownership** (`owner`, `claimed_at`) |
+| `research_run` | Researcher runs: status, agent run id, region currency, queries, limitations, redacted input summary |
+| `research_candidate` | unverified product suggestions, separate from canonical items |
 | `decision_event` | append-only audit trail for question answers and finding resolutions |
 | `activity` | shared feed (`item.corrected`, claims, imports) |
 
