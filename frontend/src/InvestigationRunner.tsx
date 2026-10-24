@@ -1,3 +1,4 @@
+import Inventory from './Inventory'
 import { useEffect, useRef, useState } from 'react'
 
 type Investigation = {
@@ -135,6 +136,10 @@ export default function InvestigationRunner({
         <button type="button" onClick={() => setPollAttempt(value => value + 1)}>
           Check progress again
         </button>
+      )}
+
+      {run?.status === 'complete' && (
+        <Inventory key={run.id} caseId={caseId} simulated={run.mode === 'mock'} />
       )}
     </div>
   )
