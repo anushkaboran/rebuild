@@ -1,6 +1,6 @@
 # Rebuild API contract
 
-**Status:** v0.6.3 — owned by Person 3 (backend). URL-based evidence + recovery of already-completed CREAO runs.
+**Status:** v0.6.4 — owned by Person 3 (backend). URL-based evidence + recovery of already-completed CREAO runs.
 **Base URL (local):** `http://localhost:8000`
 **Machine-readable schema:** `GET /openapi.json` · interactive docs at `/docs`
 
@@ -801,18 +801,23 @@ the new inventory into the existing one instead of duplicating it.
 | `review_answers` | **JSON string** | saved human answers; `[]` when nothing is answered |
 
 ```json
-"[{\"question_id\":\"q_001\",\"question\":\"Is the brown armchair yours?\",\"item_id\":\"itm_001\",\"answer\":\"Yes, mine.\",\"answered_by\":\"priya\",\"answered_at\":\"2026-10-24T19:40:02Z\"}]"
+"[{\"question_id\":\"q_001\",\"answer\":\"Yes, mine.\",\"answered_by\":\"priya\"}]"
 ```
+
+**Exactly three keys** — the Investigator v1.3.1 contract. The question text,
+`item_id` and `answered_at` are **not** sent; they stay in SpacetimeDB on the
+question row and in `decision_event`, so the review API and the audit trail keep
+them.
 
 - unanswered questions are **omitted**;
 - an answer is context for the agent and is **never** emitted inside
   `confirmed_items` — an answer does not confirm an inventory field;
 - `confirmed_items`, `previous_result` and the evidence arrays are unchanged.
 
-> ⚠️ **Unverified against the agent.** `review_answers` is not yet listed in
-> `agent/SKILL.md` / `agent/docs/contract.md` (agent branch `78eebb9`). It is sent
-> as specified here; the agent ignores inputs it does not know. Person 2 must
-> confirm the shape before a real follow-up run relies on it.
+> ✅ **Confirmed** by Person 2 for Investigator **v1.3.1**: the agent accepts
+> `review_answers` as JSON text, serialized as a string, with exactly
+> `question_id`, `answer`, `answered_by`. Verified by
+> `tests/test_followup.py::test_review_answers_payload_matches_agent_contract_exactly`.
 
 ### Evidence IDs are stable
 
@@ -1013,6 +1018,7 @@ which is normalised to `unknown`).
 
 | Version | Change |
 |---|---|
+| 0.6.4 | `review_answers` narrowed to the exact v1.3.1 contract (`question_id`, `answer`, `answered_by` as a JSON string); saved timestamps/history still stored in SpacetimeDB. |
 | 0.6.3 | Follow-up investigations: `review_answers` JSON-string input, stable per-upload `evidence_id`, case-level item reconciliation (`new`/`matched`/`identity_conflict`), findings/questions matched by agent id so human decisions survive, plus `follow_up` / `items_*` counters. |
 | 0.6.2 | Question answers (`PATCH /api/cases/{id}/questions/{q}`) and finding resolutions (`PATCH /api/cases/{id}/findings/{f}`) with per-record revisions, 400/404/409 handling, an append-only `decision_event` audit trail, persistence in SpacetimeDB and live broadcast. Review responses now embed answers/resolutions. |
 | 0.6.1 | `GET /api/cases/{id}/review`: agent fields (brand, model, purchase_date, purchase_price, nullable currency, location_in_image, visible_observations, user_confirmed_fields), findings, questions and decisions, with both backend and agent ids. Nullable currency no longer defaulted to USD; `purchase_price` never folded into `estimated_value`. |
