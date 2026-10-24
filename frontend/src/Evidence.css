@@ -88,3 +88,8 @@
 .evidence-section-heading h2, .evidence-dropzone h4 { font-weight: 750; }
 .evidence-sample-link { margin-top: 18px; padding-left: 0; color: var(--blue); }
 .evidence-feedback { background: #fff; border-color: var(--orange); border-left-width: 4px; color: #a22d13; }
+
+.evidence-workspace .evidence-section-heading h2 { color: #f8f9ff; }
+.evidence-main-card { color: var(--ink); }
+.evidence-room-badge { color: #d8dff4; background: transparent; border-color: #56628b; }
+.evidence-sample-link { color: #ff8c70; }

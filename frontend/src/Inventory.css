@@ -190,3 +190,34 @@
 .inventory-search, .inventory-room-filter select { border-color: var(--line); }
 .inventory-search:focus-within { outline-color: var(--blue); }
 .inventory-dialog { border-color: var(--line); }
+
+.inventory-workspace { color: #f8f9ff; }
+.inventory-heading h1 { color: #fff; }
+.inventory-workspace .eyebrow { color: #ff8c70; }
+.inventory-scope-tabs { border-bottom-color: #3b4469; }
+.inventory-workspace .inventory-scope-tabs button { color: #b9c2df; }
+.inventory-workspace .inventory-scope-tabs button[aria-pressed="true"] { color: #fff; border-bottom-color: var(--orange); }
+.inventory-scope-tabs button > span { background: #303b65; color: #dbe0f1; }
+.inventory-stats { gap: 0; padding: 18px 0; border: 1px solid #3b4469; border-radius: 10px; background: #1d2445; }
+.inventory-stat, .inventory-stat:last-child { border: 0; border-radius: 0; border-right: 1px solid #3b4469; padding: 4px 22px; background: transparent; }
+.inventory-stat:last-child { border-right: 0; }
+.inventory-stat > div > span, .inventory-stat strong small { color: #b9c2df; }
+.inventory-stat strong { color: #fff; }
+.inventory-stat-icon { background: #2e3c71; color: #d6defc; }
+.inventory-stat-icon-warm { background: var(--orange); color: var(--ink); }
+.inventory-sample-banner { color: #b9c2df; border-color: #3b4469; }
+.inventory-toolbar-end > span { color: #c4cbe3; }
+.inventory-card { border-color: #465077; background: #232b4c; box-shadow: none; }
+.inventory-card-media, .inventory-card-1 .inventory-card-media, .inventory-card-2 .inventory-card-media { background: #232b4c; }
+.inventory-photo-placeholder, .inventory-card-1 .inventory-photo-placeholder, .inventory-card-2 .inventory-photo-placeholder { position: relative; background: #232b4c; color: #d0d8f1; }
+.inventory-photo-placeholder::before { content: ''; position: absolute; inset: 32px 27px 125px; border: 1px dashed #53618d; border-radius: 5px; }
+.inventory-photo-placeholder > svg { width: 40px; height: 40px; stroke-width: 1.2; }
+.inventory-photo-placeholder > span { font-size: 10px; font-weight: 400; }
+.inventory-card-room { background: #10172ed9; color: #eef1ff; font-size: 10px; font-weight: 500; }
+.inventory-record-index { position: absolute; top: 17px; right: 16px; color: #fff; font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; text-shadow: 0 1px 5px #10172e; }
+.inventory-card-sheet { color: var(--ink); }
+.inventory-card-sheet button { color: var(--ink); }
+.inventory-card-sheet .inventory-review-button { color: #fff; }
+.inventory-welcome-card, .inventory-no-results { color: var(--ink); background: #fff; border-radius: 12px; }
+.inventory-modal-media .inventory-photo-placeholder::before { display: none; }
+@media (max-width: 700px) { .inventory-stats { padding: 15px 0; } .inventory-stat { padding: 0 14px; } .inventory-stat-icon { display: none; } }

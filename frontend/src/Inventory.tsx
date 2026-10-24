@@ -45,7 +45,7 @@ type Props = {
   onAddEvidence?: () => void
 }
 
-type IconName = 'search' | 'arrow' | 'file' | 'layers' | 'review' | 'info' | 'check' | 'chair' | 'light' | 'frame' | 'table' | 'vase'
+type IconName = 'search' | 'arrow' | 'file' | 'layers' | 'review' | 'info' | 'check' | 'image'
 
 function InventoryIcon({ name, className = '' }: { name: IconName; className?: string }) {
   return (
@@ -57,21 +57,10 @@ function InventoryIcon({ name, className = '' }: { name: IconName; className?: s
       {name === 'review' && <><path d="M8 5H5v16h14V5h-3M9 3h6v4H9zM8 12h8m-8 4h5" /></>}
       {name === 'info' && <><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7h.01" /></>}
       {name === 'check' && <path d="m5 12 4 4L19 6" />}
-      {name === 'chair' && <><path d="M7 12V7a5 5 0 0 1 10 0v5M5 12h14v7H5zM5 14H3V9h4m12 5h2V9h-4M7 19v3m10-3v3" /></>}
-      {name === 'light' && <><path d="M12 2v4m-3 0h6l4 9H5zM12 15v4m-3 3h6" /><path d="M9 19h6" /></>}
-      {name === 'frame' && <><rect x="4" y="3" width="16" height="18" rx="1" /><path d="M7 6h10v12H7zM7 15l3-3 3 3 2-2 2 2" /></>}
-      {name === 'table' && <><path d="M3 8h18v5H3zM6 13v8m12-8v8M3 8l3-4h12l3 4" /></>}
-      {name === 'vase' && <><path d="M9 10h6c0 4 4 7 2 10H7c-2-3 2-6 2-10ZM12 10V3m0 3 4-3m-4 5-4-4" /></>}
+      {name === 'image' && <><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8" cy="8" r="1.5" /><path d="m3 17 5-5 4 4 3-3 6 6" /></>}
+
     </svg>
   )
-}
-
-function itemIcon(name: string): IconName {
-  if (/light|bulb|pendant/i.test(name)) return 'light'
-  if (/print|frame/i.test(name)) return 'frame'
-  if (/table/i.test(name)) return 'table'
-  if (/vase/i.test(name)) return 'vase'
-  return 'chair'
 }
 
 const editableFields = ['name', 'brand', 'model', 'purchase_date', 'purchase_price', 'currency'] as const
@@ -282,11 +271,11 @@ export default function Inventory({ activeView, demoRequested, demoRequestId = 0
 
   return (
     <section className="inventory-workspace" aria-labelledby="inventory-title">
-      <div className="inventory-heading"><div><p className="eyebrow">{activeView === 'review' ? 'REVIEW' : 'INVENTORY'}</p><h1 id="inventory-title">{activeView === 'review' ? 'Review your items.' : 'Your inventory.'}</h1></div><button type="button" className="button-primary inventory-create-button" onClick={() => setCreating(true)}><span aria-hidden="true">＋</span> Create item</button></div>
+      <div className="inventory-heading"><div><p className="eyebrow">{activeView === 'review' ? 'REVIEW' : 'INVENTORY'}</p><h1 id="inventory-title">{activeView === 'review' ? 'Review your items.' : 'Your recovery record.'}</h1></div><button type="button" className="button-primary inventory-create-button" onClick={() => setCreating(true)}><span aria-hidden="true">＋</span> Create item</button></div>
 
       <div className="inventory-scope-tabs" aria-label="Inventory source"><button type="button" aria-pressed={!isSample} onClick={() => chooseScope('yours')}>Your items <span>{userItems.length}</span></button><button type="button" aria-pressed={isSample} onClick={() => chooseScope('sample')}>Sample inventory <span>8</span></button></div>
 
-      {displayedItems.length > 0 && <div className="inventory-stats" aria-label="Inventory summary"><div className="inventory-stat"><span className="inventory-stat-icon"><InventoryIcon name="layers" /></span><div><span>Total items</span><strong>{displayedItems.length}<small>belongings recorded</small></strong></div></div><div className="inventory-stat"><span className="inventory-stat-icon"><InventoryIcon name="file" /></span><div><span>{isSample ? 'Sample evidence' : 'Photos attached'}</span><strong>{records?.evidence.length ?? 0}<small>{isSample ? 'source descriptions' : 'selected by you'}</small></strong></div></div><div className="inventory-stat"><span className="inventory-stat-icon inventory-stat-icon-warm"><InventoryIcon name={isSample ? 'review' : 'check'} /></span><div><span>{isSample ? 'Open review tasks' : 'Confirmed fields'}</span><strong>{isSample ? openTaskCount : confirmedFieldCount}<small>{isSample ? 'across this sample case' : 'details you provided'}</small></strong></div></div></div>}
+      {displayedItems.length > 0 && <div className="inventory-stats" aria-label="Inventory summary"><div className="inventory-stat"><span className="inventory-stat-icon"><InventoryIcon name="layers" /></span><div><span>Total items</span><strong>{displayedItems.length}<small>item records</small></strong></div></div><div className="inventory-stat"><span className="inventory-stat-icon"><InventoryIcon name="file" /></span><div><span>{isSample ? 'Sample evidence' : 'Photos attached'}</span><strong>{records?.evidence.length ?? 0}<small>{isSample ? 'source descriptions' : 'selected by you'}</small></strong></div></div><div className="inventory-stat"><span className="inventory-stat-icon inventory-stat-icon-warm"><InventoryIcon name={isSample ? 'review' : 'check'} /></span><div><span>{isSample ? 'Open review tasks' : 'Confirmed fields'}</span><strong>{isSample ? openTaskCount : confirmedFieldCount}<small>{isSample ? 'across this sample case' : 'details you provided'}</small></strong></div></div></div>}
 
       <div className="inventory-sample-banner"><InventoryIcon name="info" /><p>{isSample ? 'Sample records — separate from your uploads.' : 'Manually added items. Automatic photo analysis is not connected.'}</p></div>
 
@@ -313,8 +302,8 @@ export default function Inventory({ activeView, demoRequested, demoRequestId = 0
                     <DisclosureTrigger className="inventory-image-trigger" aria-label={`${expanded ? 'Hide' : 'Show'} details for ${item.name}`}>
                       {photo
                         ? <PhotoPreview file={photo} className="inventory-card-image" />
-                        : <span className="inventory-photo-placeholder"><InventoryIcon name={itemIcon(item.name)} /><span>No photo attached</span></span>}
-                      <span className="inventory-card-room">{item.room}</span>
+                        : <span className="inventory-photo-placeholder"><InventoryIcon name="image" /><span>No photo attached</span></span>}
+                      <span className="inventory-card-room">{item.room}</span><span className="inventory-record-index" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
                     </DisclosureTrigger>
                     <div className="inventory-card-sheet">
                       <button type="button" className="inventory-card-trigger" aria-expanded={expanded} onClick={() => setExpandedId(expanded ? null : item.item_id)}>
@@ -342,7 +331,7 @@ export default function Inventory({ activeView, demoRequested, demoRequestId = 0
         <DialogContent className="inventory-dialog">
           {selected && records && <>
             <div className="inventory-modal-heading"><div><span className="inventory-modal-eyebrow">{isSample ? 'SAMPLE ITEM' : 'YOUR ITEM'} <i>·</i> {selected.room}</span><DialogTitle className="inventory-modal-title">{selected.name}</DialogTitle><DialogDescription className="inventory-modal-description">{isSample ? 'Check the evidence, confirm details, and work through questions.' : 'An item you added manually. Confirm the details you know.'}</DialogDescription></div><DialogClose className="inventory-modal-close"><span aria-hidden="true">×</span><span className="inventory-sr-only">Close item</span></DialogClose></div>
-            <div className={`inventory-modal-media${photoFor(selected) ? ' has-photo' : ''}`}>{photoFor(selected) ? <PhotoPreview file={photoFor(selected)!} /> : <div className="inventory-photo-placeholder"><InventoryIcon name={itemIcon(selected.name)} /><span>Add a photo to bring this item into focus</span></div>}</div>
+            <div className={`inventory-modal-media${photoFor(selected) ? ' has-photo' : ''}`}>{photoFor(selected) ? <PhotoPreview file={photoFor(selected)!} /> : <div className="inventory-photo-placeholder"><InventoryIcon name="image" /><span>Add a photo to bring this item into focus</span></div>}</div>
             <div className="inventory-modal-photo-row">{photoPicker(selected, true)}{photoErrors[selected.item_id] && <p className="inventory-photo-error" role="alert">{photoErrors[selected.item_id]}</p>}<p>{isSample ? 'Chosen photos are previews. Sample evidence stays separate.' : photoFor(selected) ? 'This photo was explicitly selected by you.' : 'No photo attached. Choose one to add it to this item.'}</p></div>
             <div className="inventory-tabs" aria-label="Item information">{panelNames.map(value => <button type="button" key={value} aria-pressed={panel === value} onClick={() => setPanel(value)}>{value === 'details' ? 'Item details' : value === 'evidence' ? 'Evidence' : 'Review'}{value === 'review' && itemTaskCount(selected.item_id) > 0 && <span>{itemTaskCount(selected.item_id)}</span>}</button>)}</div>
             <TransitionPanel keepMounted activeIndex={panelNames.indexOf(panel)} className="inventory-modal-panels" transition={{ duration: 0.22, ease: 'easeInOut' }}>

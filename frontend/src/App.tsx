@@ -24,7 +24,7 @@ function Icon({ name, ...props }: { name: string; className?: string }) {
 }
 
 const navItems: { id: View; label: string; icon: string }[] = [
-  { id: 'overview', label: 'Overview', icon: 'home' },
+  { id: 'overview', label: 'Room setup', icon: 'home' },
   { id: 'evidence', label: 'Evidence', icon: 'image' },
   { id: 'inventory', label: 'Inventory', icon: 'grid' },
   { id: 'review', label: 'Review', icon: 'review' },
@@ -57,32 +57,32 @@ function App() {
   return (
     <MotionConfig reducedMotion="user"><div className="app-shell">
       <a href="#main-content" className="skip-link">Skip to workspace</a>
-      <aside className="sidebar" aria-label="Workspace navigation">
-        <a className="brand" href="#overview" onClick={event => { event.preventDefault(); navigate('overview') }}><span className="brand-mark"><Icon name="home" /></span>rebuild<span className="brand-dot">.</span></a>
-        <div className="workspace-label"><span className="workspace-avatar">R</span><div>Your workspace</div></div>
-        <p className="nav-caption">WORKSPACE</p>
-        <nav className="main-nav">
-          {navItems.map(item => <button key={item.id} className={`nav-item ${view === item.id ? 'is-active' : ''}`} aria-current={view === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}><Icon name={item.icon} /><span>{item.label}</span>{item.id === 'evidence' && fileCount > 0 && <span className="nav-count">{fileCount}</span>}{view === item.id && <span className="nav-active-dot" />}</button>)}
+      <header className="topbar">
+        <a className="brand" href="#overview" onClick={event => { event.preventDefault(); navigate('overview') }}>rebuild<span className="brand-dot">.</span></a>
+        <nav className="main-nav" aria-label="Workspace navigation">
+          {navItems.map((item, index) => <button key={item.id} className={`nav-item ${view === item.id ? 'is-active' : ''}`} aria-current={view === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}><span className="nav-step">0{index + 1}</span><span>{item.label}</span>{item.id === 'evidence' && fileCount > 0 && <span className="nav-count">{fileCount}</span>}</button>)}
         </nav>
-        {started && <div className="sidebar-room"><p className="nav-caption">YOUR DRAFT</p><div><Icon name="home" /><span>{room}<small>In this session</small></span></div></div>}
-        <div className="sidebar-bottom"><div className="session-label"><span className="session-avatar">Y</span><div>Your workspace<small>Local session</small></div><span className="session-status" aria-label="Local session" /></div></div>
-      </aside>
-
+        <span className="local-pill"><span />Local session</span>
+      </header>
       <div className="app-main">
-        <header className="topbar"><div className="breadcrumb">Workspace<Icon name="chevron" /><span>{navItems.find(item => item.id === view)?.label}</span></div><span className="local-pill"><span />Local session</span></header>
         <main ref={mainRef} id="main-content" className="main-content" tabIndex={-1}>
           <div hidden={view !== 'overview'}>
-            <div className="page-heading"><div><p className="eyebrow">YOUR RECOVERY WORKSPACE</p><h1>Rebuild your <span>record.</span></h1></div><button className="button-secondary" onClick={openDemo}>Open sample<Icon name="arrow" /></button></div>
             <div className="overview-layout">
+              <section className="hero-copy" aria-labelledby="hero-title">
+                <p className="eyebrow">YOUR RECOVERY WORKSPACE</p>
+                <h1 id="hero-title">Rebuild your record.<br /><span>One room at a time.</span></h1>
+                <p className="hero-description">Keep your photos, receipts, and item details together.</p>
+                <button type="button" className="sample-link" onClick={openDemo}>Explore a sample case<Icon name="arrow" /></button>
+              </section>
               <section className="setup-card" aria-labelledby="setup-title">
-                <div className="setup-progress"><span className="step-dot current">1</span><span>Room details</span><span className="step-line" /><span className={`step-dot ${started ? 'current' : ''}`}>2</span><span className="step-next">Add evidence</span></div>
-                <div className="setup-card-title"><span className="section-icon"><Icon name="home" /></span><div><h2 id="setup-title">Room details</h2></div></div>
+                <p className="eyebrow">LET’S GET STARTED</p>
+                <h2 id="setup-title">Tell us about your room</h2>
                 <form onSubmit={event => { event.preventDefault(); if (!description.trim()) { setDescriptionError(true); document.getElementById('description')?.focus(); return }; setDescriptionError(false); setStarted(true); navigate('evidence') }}>
-                  <label htmlFor="room">Room</label>
-                  <select id="room" value={room} onChange={event => setRoom(event.target.value)}><option>Living room</option><option>Bedroom</option><option>Kitchen</option><option>Dining room</option><option>Home office</option><option>Other</option></select>
                   <label htmlFor="description">What happened? <span className="required-label">Required</span></label>
                   <textarea id="description" value={description} onChange={event => { setDescription(event.target.value); setDescriptionError(false) }} placeholder="Describe the incident and what you want to document." required maxLength={3000} aria-invalid={descriptionError || undefined} aria-describedby={descriptionError ? 'description-error' : undefined} />
                   {descriptionError && <p className="form-error" id="description-error" role="alert">Add a few words about what you'd like to document.</p>}
+                  <label htmlFor="room">Room</label>
+                  <select id="room" value={room} onChange={event => setRoom(event.target.value)}><option>Living room</option><option>Bedroom</option><option>Kitchen</option><option>Dining room</option><option>Home office</option><option>Other</option></select>
                   <div className="form-footer"><button type="submit" className="button-primary">{started ? 'Continue to evidence' : 'Create room draft'}<Icon name="arrow" /></button></div>
                 </form>
               </section>
