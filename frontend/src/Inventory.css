@@ -34,11 +34,9 @@
 .inventory-toolbar-end > span { color: #626274; font-size: 11px; white-space: nowrap; }
 .inventory-room-filter { margin: 0; }
 .inventory-room-filter select { min-width: 145px; padding: 12px 30px 12px 13px; border: 1px solid #d9dbe5; border-radius: 9px; background: #fff; color: #626274; font: inherit; font-size: 11px; font-weight: 500; }
-.inventory-card-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; align-items: start; }
+.inventory-card-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; align-items: stretch; }
 .inventory-card { width: 100%; overflow: hidden; background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 4px 12px #2525380a; }
 .inventory-card-media { position: relative; aspect-ratio: .9; overflow: hidden; background: var(--blue); }
-.inventory-card-1 .inventory-card-media { aspect-ratio: .82; }
-.inventory-card-2 .inventory-card-media { aspect-ratio: 1; }
 .inventory-card-image { display: block; height: 100%; width: 100%; object-fit: cover; transition: transform 280ms ease, filter 280ms ease; }
 .inventory-card.is-expanded .inventory-card-image { transform: scale(1.025); filter: blur(.6px); }
 .inventory-card-room { position: absolute; top: 14px; left: 14px; padding: 6px 9px; border-radius: 5px; background: #fff; color: var(--ink); font-size: 10px; font-weight: 750; }
@@ -207,17 +205,24 @@
 .inventory-stat-icon-warm { background: var(--orange); color: var(--ink); }
 .inventory-sample-banner { color: #b9c2df; border-color: #3b4469; }
 .inventory-toolbar-end > span { color: #c4cbe3; }
-.inventory-card { border-color: #465077; background: #232b4c; box-shadow: none; }
-.inventory-card-media, .inventory-card-1 .inventory-card-media, .inventory-card-2 .inventory-card-media { background: #232b4c; }
-.inventory-photo-placeholder, .inventory-card-1 .inventory-photo-placeholder, .inventory-card-2 .inventory-photo-placeholder { position: relative; background: #232b4c; color: #d0d8f1; }
-.inventory-photo-placeholder::before { content: ''; position: absolute; inset: 32px 27px 125px; border: 1px dashed #53618d; border-radius: 5px; }
+.inventory-card { padding: 9px; border-color: #fff; background: #fff; box-shadow: 0 8px 24px #080d2433; }
+.inventory-card-media { border-radius: 8px; background: #fff; }
+.inventory-photo-placeholder, .inventory-card-1 .inventory-photo-placeholder, .inventory-card-2 .inventory-photo-placeholder { position: relative; background: #fff; color: #626274; }
+.inventory-photo-placeholder::before { content: ''; position: absolute; inset: 32px 27px 125px; border: 1px dashed #c9ccda; border-radius: 5px; }
 .inventory-photo-placeholder > svg { width: 40px; height: 40px; stroke-width: 1.2; }
 .inventory-photo-placeholder > span { font-size: 10px; font-weight: 400; }
 .inventory-card-room { background: #10172ed9; color: #eef1ff; font-size: 10px; font-weight: 500; }
-.inventory-record-index { position: absolute; top: 17px; right: 16px; color: #fff; font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; text-shadow: 0 1px 5px #10172e; }
+.inventory-record-index { position: absolute; top: 14px; right: 14px; padding: 5px 7px; color: #fff; background: #10172ed9; border-radius: 4px; font-size: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .inventory-card-sheet { color: var(--ink); }
 .inventory-card-sheet button { color: var(--ink); }
 .inventory-card-sheet .inventory-review-button { color: #fff; }
 .inventory-welcome-card, .inventory-no-results { color: var(--ink); background: #fff; border-radius: 12px; }
 .inventory-modal-media .inventory-photo-placeholder::before { display: none; }
 @media (max-width: 700px) { .inventory-stats { padding: 15px 0; } .inventory-stat { padding: 0 14px; } .inventory-stat-icon { display: none; } }
+
+.inventory-sample-image-badge { position: absolute; top: 45px; left: 14px; color: #fff; background: #10172ed9; padding: 4px 7px; border-radius: 4px; font-size: 9px; font-weight: 500; }
+.inventory-modal-photo-row a { color: var(--blue); text-underline-offset: 3px; }
+@media (max-width: 700px) { .inventory-sample-image-badge { top: 40px; left: 10px; } }
+
+.inventory-workspace .inventory-card-trigger { height: 104px; }
+.inventory-card-trigger strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-height: 2.8em; overflow: hidden; }

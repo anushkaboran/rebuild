@@ -5,6 +5,7 @@ import { TransitionPanel } from './components/core/transition-panel'
 import FieldEditor from './FieldEditor'
 import ReviewFindings from './ReviewFindings'
 import type { Finding, Question } from './ReviewFindings'
+import { sampleImages } from './sampleImages'
 import './Inventory.css'
 
 type Item = {
@@ -184,6 +185,14 @@ export default function Inventory({ activeView, demoRequested, demoRequestId = 0
     return imageFiles.find(file => filenames.includes(file.name)) ?? null
   }
 
+  function sampleImageFor(item: Item) {
+    if (!isSample || photoFor(item) || Object.hasOwn(assignedPhotos, item.item_id)) return undefined
+    return sampleImages[item.item_id]
+  }
+
+  const selectedPhoto = selected ? photoFor(selected) : null
+  const selectedSampleImage = selected ? sampleImageFor(selected) : undefined
+
   function chooseScope(next: 'yours' | 'sample') {
     setScope(next)
     setSearch('')
@@ -255,12 +264,13 @@ export default function Inventory({ activeView, demoRequested, demoRequestId = 0
 
   function photoPicker(item: Item, inModal = false) {
     const photo = photoFor(item)
+    const sampleImage = sampleImageFor(item)
     const selectedKey = photo ? fileKey(photo) : ''
     const isLocalPhoto = photo && !imageFiles.some(file => fileKey(file) === selectedKey)
     return (
       <div className={`inventory-photo-controls${inModal ? ' in-modal' : ''}`}>
         {imageFiles.length > 0 && <label className="inventory-photo-select"><span className="inventory-sr-only">Choose a photo for {item.name}</span><select value={selectedKey} onChange={event => assignPhoto(item, imageFiles.find(file => fileKey(file) === event.target.value) ?? null)}><option value="">Choose a photo</option>{isLocalPhoto && <option value={selectedKey}>{photo.name}</option>}{imageFiles.map(file => <option key={fileKey(file)} value={fileKey(file)}>{file.name}</option>)}</select></label>}
-        <label className="inventory-photo-upload"><span aria-hidden="true">＋</span>{photo ? 'Change photo' : 'Add a photo'}<input className="inventory-sr-only" type="file" accept="image/*" aria-label={`${photo ? 'Change' : 'Add'} photo for ${item.name}`} onChange={event => {
+        <label className="inventory-photo-upload"><span aria-hidden="true">＋</span>{photo ? 'Change photo' : sampleImage ? 'Replace sample photo' : 'Add a photo'}<input className="inventory-sr-only" type="file" accept="image/*" aria-label={`${photo || sampleImage ? 'Change' : 'Add'} photo for ${item.name}`} onChange={event => {
           const file = event.target.files?.[0]
           if (file) assignPhoto(item, file)
           event.target.value = ''
@@ -289,6 +299,7 @@ export default function Inventory({ activeView, demoRequested, demoRequestId = 0
               const taskCount = itemTaskCount(item.item_id)
               const expanded = expandedId === item.item_id
               const photo = photoFor(item)
+              const sampleImage = sampleImageFor(item)
               return (
                 <Disclosure
                   key={item.item_id}
@@ -298,12 +309,14 @@ export default function Inventory({ activeView, demoRequested, demoRequestId = 0
                   variants={{ expanded: { y: 0 }, collapsed: { y: 12 } }}
                   transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
                 >
-                  <div className={`inventory-card-media${photo ? ' has-photo' : ''}`}>
+                  <div className={`inventory-card-media${photo || sampleImage ? ' has-photo' : ''}`}>
                     <DisclosureTrigger className="inventory-image-trigger" aria-label={`${expanded ? 'Hide' : 'Show'} details for ${item.name}`}>
                       {photo
                         ? <PhotoPreview file={photo} className="inventory-card-image" />
+                        : sampleImage ? <img src={sampleImage.src} alt={sampleImage.alt} className="inventory-card-image" loading="lazy" decoding="async" />
                         : <span className="inventory-photo-placeholder"><InventoryIcon name="image" /><span>No photo attached</span></span>}
                       <span className="inventory-card-room">{item.room}</span><span className="inventory-record-index" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+                      {sampleImage && <span className="inventory-sample-image-badge">Sample photo</span>}
                     </DisclosureTrigger>
                     <div className="inventory-card-sheet">
                       <button type="button" className="inventory-card-trigger" aria-expanded={expanded} onClick={() => setExpandedId(expanded ? null : item.item_id)}>
@@ -331,8 +344,18 @@ export default function Inventory({ activeView, demoRequested, demoRequestId = 0
         <DialogContent className="inventory-dialog">
           {selected && records && <>
             <div className="inventory-modal-heading"><div><span className="inventory-modal-eyebrow">{isSample ? 'SAMPLE ITEM' : 'YOUR ITEM'} <i>·</i> {selected.room}</span><DialogTitle className="inventory-modal-title">{selected.name}</DialogTitle><DialogDescription className="inventory-modal-description">{isSample ? 'Check the evidence, confirm details, and work through questions.' : 'An item you added manually. Confirm the details you know.'}</DialogDescription></div><DialogClose className="inventory-modal-close"><span aria-hidden="true">×</span><span className="inventory-sr-only">Close item</span></DialogClose></div>
-            <div className={`inventory-modal-media${photoFor(selected) ? ' has-photo' : ''}`}>{photoFor(selected) ? <PhotoPreview file={photoFor(selected)!} /> : <div className="inventory-photo-placeholder"><InventoryIcon name="image" /><span>Add a photo to bring this item into focus</span></div>}</div>
-            <div className="inventory-modal-photo-row">{photoPicker(selected, true)}{photoErrors[selected.item_id] && <p className="inventory-photo-error" role="alert">{photoErrors[selected.item_id]}</p>}<p>{isSample ? 'Chosen photos are previews. Sample evidence stays separate.' : photoFor(selected) ? 'This photo was explicitly selected by you.' : 'No photo attached. Choose one to add it to this item.'}</p></div>
+            <div className={`inventory-modal-media${selectedPhoto || selectedSampleImage ? ' has-photo' : ''}`}>
+              {selectedPhoto ? <PhotoPreview file={selectedPhoto} />
+                : selectedSampleImage ? <img src={selectedSampleImage.src} alt={selectedSampleImage.alt} decoding="async" />
+                : <div className="inventory-photo-placeholder"><InventoryIcon name="image" /><span>Add a photo to bring this item into focus</span></div>}
+            </div>
+            <div className="inventory-modal-photo-row">
+              {photoPicker(selected, true)}
+              {photoErrors[selected.item_id] && <p className="inventory-photo-error" role="alert">{photoErrors[selected.item_id]}</p>}
+              {selectedSampleImage
+                ? <p>Illustrative sample · <a href={selectedSampleImage.source} target="_blank" rel="noopener noreferrer">{selectedSampleImage.photographer} / Unsplash</a></p>
+                : <p>{isSample ? 'Chosen photos are previews. Sample evidence stays separate.' : selectedPhoto ? 'This photo was explicitly selected by you.' : 'No photo attached. Choose one to add it to this item.'}</p>}
+            </div>
             <div className="inventory-tabs" aria-label="Item information">{panelNames.map(value => <button type="button" key={value} aria-pressed={panel === value} onClick={() => setPanel(value)}>{value === 'details' ? 'Item details' : value === 'evidence' ? 'Evidence' : 'Review'}{value === 'review' && itemTaskCount(selected.item_id) > 0 && <span>{itemTaskCount(selected.item_id)}</span>}</button>)}</div>
             <TransitionPanel keepMounted activeIndex={panelNames.indexOf(panel)} className="inventory-modal-panels" transition={{ duration: 0.22, ease: 'easeInOut' }}>
               <div className="inventory-detail-body"><div className="inventory-section-heading"><h3>{isSample ? 'What the sample describes' : 'Your notes'}</h3><span>{isSample ? 'From sample evidence' : 'Added by you'}</span></div><div className="inventory-observation"><p>{selected.visible_observations}</p>{isSample && <details><summary>Where it appears in the sample image</summary><p>{selected.location_in_image}</p></details>}</div><div className="inventory-section-heading inventory-fields-heading"><div><h3>Item details</h3></div></div><div className="inventory-fields">{editableFields.map(field => <FieldEditor key={selected.item_id + field} label={field} value={selected[field]} confirmed={selected.user_confirmed_fields.includes(field)} onConfirm={value => confirmField(field, value)} />)}</div></div>
