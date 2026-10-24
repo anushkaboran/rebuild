@@ -1,6 +1,6 @@
 # Rebuild API contract
 
-**Status:** v0.6.1 — owned by Person 3 (backend). URL-based evidence + recovery of already-completed CREAO runs.
+**Status:** v0.6.2 — owned by Person 3 (backend). URL-based evidence + recovery of already-completed CREAO runs.
 **Base URL (local):** `http://localhost:8000`
 **Machine-readable schema:** `GET /openapi.json` · interactive docs at `/docs`
 
@@ -667,6 +667,125 @@ Re-read the review endpoint and re-apply on top of it.
 
 ---
 
+## 6e. Review decisions — questions and findings
+
+Two write endpoints. Both bump a per-record `revision`, append to an audit trail,
+and never touch inventory items, `user_confirmed_fields` or receipt prices.
+
+### `PATCH /api/cases/{case_id}/questions/{question_ref}`
+
+`question_ref` accepts either the backend id (`inv_…:q_001`) or the agent id
+(`q_001`) — both are in the review payload.
+
+```json
+{ "answer": "Yes, mine — it was in the room.", "reviewer": "priya", "if_revision": 0 }
+```
+
+| Field | Notes |
+|---|---|
+| `answer` | string, or `null`/`""` to **clear** a saved answer |
+| `reviewer` | required when saving an answer; free text (see the auth note) |
+| `if_revision` | the `revision` you rendered; `0` for a never-answered question |
+
+`200` → the updated question:
+
+```json
+{
+  "id": "inv_b58112068a26:q_001", "question_id": "q_001",
+  "item_id": "itm_001",
+  "question": "Is the brown armchair yours and was it in the room when the water entered?",
+  "reason": "Ownership affects the claim.",
+  "evidence_ids": ["ev_001", "ev_002"],
+  "status": "answered",
+  "resolution_reason": null,
+  "answer": "Yes, mine — it was in the room.",
+  "answered_by": "priya",
+  "answered_at": "2026-10-24T19:40:02.114Z",
+  "revision": 1
+}
+```
+
+Clearing (`answer: null`) returns `status: "open"`, `answer: null`,
+`answered_by: null`, `answered_at: null` and `revision` incremented — a question
+is only `answered` while an answer is actually stored. The agent's `question`
+and `reason` text are never rewritten.
+
+### `PATCH /api/cases/{case_id}/findings/{finding_ref}`
+
+`finding_ref` accepts the backend id or `fnd_001`.
+
+```json
+{ "resolution": "confirmed", "reason": "Second photo shows the same chair.",
+  "reviewer": "priya", "if_revision": 0 }
+```
+
+| Field | Notes |
+|---|---|
+| `resolution` | `confirmed` \| `rejected` \| `needs_more_evidence` \| `unresolved` |
+| `reason` | **required when `resolution` is `rejected`** |
+| `reviewer` | required |
+| `if_revision` | the `revision` you rendered |
+
+`200` → the updated finding, with the agent's `finding_id`, `finding_type`,
+`explanation`, `item_ids` and `evidence_ids` unchanged, plus `resolution`,
+`resolution_reason`, `resolved_by`, `resolved_at`, `revision`.
+
+### Errors
+
+```jsonc
+// 400 — rejection without a reason, or a missing reviewer
+{ "detail": { "code": "REASON_REQUIRED",
+              "message": "A reason is required when rejecting a finding." } }
+
+// 404 — case, question or finding not in this case
+{ "detail": { "code": "QUESTION_NOT_FOUND",
+              "message": "Question 'q_999' was not found in case 'case_…'." } }
+
+// 409 — stale revision; `current` is the saved decision to reconcile against
+{ "detail": {
+    "code": "REVISION_CONFLICT",
+    "message": "Question 'q_001' is at revision 2, not 1.",
+    "current": { "id": "inv_…:q_001", "answer": "Yes, mine.", "revision": 2, "…": "…" } } }
+```
+
+Codes: `REASON_REQUIRED`, `REVIEWER_REQUIRED`, `QUESTION_NOT_FOUND`,
+`FINDING_NOT_FOUND`, `REVISION_CONFLICT`.
+
+Re-submitting the **same** `if_revision` twice is a conflict, not a silent
+double-apply: the second call returns `409` with the already-saved decision.
+
+### Audit trail
+
+Every accepted change appends a `DecisionEvent`:
+
+```json
+{ "id": "dec_…", "case_id": "case_…", "target_type": "question",
+  "target_id": "inv_…:q_001", "agent_ref": "q_001", "revision": 1,
+  "value": "Yes, mine — it was in the room.", "reviewer": "priya",
+  "note": null, "created_at": "2026-10-24T19:40:02.114Z" }
+```
+
+### Reading decisions back
+
+`GET /api/cases/{case_id}/review` now embeds the decision on each record **and**
+returns two audit arrays:
+
+| Location | Links to the source by |
+|---|---|
+| `questions[].answer / answered_by / answered_at / revision / status` | `questions[].id` (or `question_id`) |
+| `findings[].resolution / resolution_reason / resolved_by / resolved_at / revision` | `findings[].id` (or `finding_id`) |
+| `question_decisions[]` / `finding_decisions[]` | `target_id` (backend id) and `agent_ref` (`q_001` / `fnd_001`) |
+| `decisions[]` (unchanged) | inventory items: `item_id` / `agent_item_id` |
+
+`decisions[]` remains **item** decisions only (PATCH /api/items/{id}); the two new
+arrays cover questions and findings. All previous top-level fields are unchanged.
+
+> **Identity:** `reviewer` / `answered_by` / `resolved_by` are client-supplied
+> strings. They are **not authenticated identities** — there is no auth layer.
+> Treat them as display names, and do not rely on them for authorization.
+
+---
+
 ## 7. Comments, events and export
 
 ### `GET /api/cases/{case_id}/comments` → `Comment[]`
@@ -810,6 +929,7 @@ which is normalised to `unknown`).
 
 | Version | Change |
 |---|---|
+| 0.6.2 | Question answers (`PATCH /api/cases/{id}/questions/{q}`) and finding resolutions (`PATCH /api/cases/{id}/findings/{f}`) with per-record revisions, 400/404/409 handling, an append-only `decision_event` audit trail, persistence in SpacetimeDB and live broadcast. Review responses now embed answers/resolutions. |
 | 0.6.1 | `GET /api/cases/{id}/review`: agent fields (brand, model, purchase_date, purchase_price, nullable currency, location_in_image, visible_observations, user_confirmed_fields), findings, questions and decisions, with both backend and agent ids. Nullable currency no longer defaulted to USD; `purchase_price` never folded into `estimated_value`. |
 | 0.5 | `POST /api/creao/recover` imports an already-completed CREAO run without starting a new one: shared import pipeline, validation-before-write, idempotent retries, human corrections preserved, case/upload restoration from supplied metadata + disk. |
 | 0.4 | URL-based evidence: `room_photos`/`receipt_files` are arrays of short-lived signed HTTPS URLs served by this backend; JSON-string `evidence_manifest`/`confirmed_items`; `previous_result` omitted on first runs; signed public evidence routes; pre-flight URL reachability check; evidence-ID validation against the IDs actually sent. |

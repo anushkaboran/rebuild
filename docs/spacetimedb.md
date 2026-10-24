@@ -44,7 +44,15 @@ metadata and the storage reference only.
 | `finding` / `question` | agent findings and open questions |
 | `comment` | case/item discussion |
 | `task` | missing-evidence work items with **ownership** (`owner`, `claimed_at`) |
+| `decision_event` | append-only audit trail for question answers and finding resolutions |
 | `activity` | shared feed (`item.corrected`, claims, imports) |
+
+`question` and `finding` carry both agent fields and human decision fields on the
+same row. Agent fields are only rewritten on re-import when
+`revision = 0` (no human decision yet), so `upsert_question` / `upsert_finding`
+cannot erase an answer or resolution. `apply_question_decision` and
+`apply_finding_decision` take `expected_revision`, throw `REVISION_CONFLICT` when
+stale, and append a `decision_event` in the same transaction.
 
 **Agent vs human:** an item is created with `status="ai_suggested"`; a reviewer
 edit sets `human_corrected` / `human_confirmed` and bumps `revision`. The
@@ -91,6 +99,9 @@ const conn = DbConnection.builder()
         `SELECT * FROM revision WHERE case_id = '${caseId}'`,
         `SELECT * FROM task WHERE case_id = '${caseId}'`,
         `SELECT * FROM activity WHERE case_id = '${caseId}'`,
+        `SELECT * FROM question WHERE case_id = '${caseId}'`,
+        `SELECT * FROM finding WHERE case_id = '${caseId}'`,
+        `SELECT * FROM decision_event WHERE case_id = '${caseId}'`,
       ]);
   })
   .build();
