@@ -197,3 +197,69 @@ with two live clients (`spacetimedb/scripts/two-client-decisions.ts`).
 `reviewer` / `answered_by` / `resolved_by` are display strings you supply. They
 are **not authenticated** — there is no auth layer in the backend. Show them as
 attribution, never as permission.
+
+
+---
+
+# "Update Investigation" — follow-up runs (v0.6.3)
+
+Start a follow-up exactly like the first investigation; nothing new is required
+from the UI:
+
+```http
+POST /api/cases/{case_id}/investigations
+{ "upload_id": "upl_…", "upload_ids": ["upl_…","upl_…"], "room_hint": "Living room" }
+```
+
+The backend automatically:
+
+1. reuses each upload's **stable evidence ID** (`ev_001`…), assigning new numbers
+   only to newly uploaded files;
+2. sends every saved question answer as `review_answers` (JSON string);
+3. reconciles the returned inventory into the existing case.
+
+## What to show after the run
+
+Poll `GET /api/investigations/{id}` until `status` is `complete` or `failed`, then
+refresh the review screen. The investigation now reports:
+
+| Field | UI use |
+|---|---|
+| `follow_up` | badge the run as an update rather than a first pass |
+| `items_created` | "2 new belongings proposed" |
+| `items_reconciled` | "1 existing belonging updated" |
+| `items_flagged` | "1 needs identity review" |
+| `status` / `error` | surface failures (`failed` means nothing was imported) |
+
+## Three item states to render differently
+
+Each item in `GET /api/cases/{id}/review` has `reconciliation`:
+
+| Value | Meaning | Suggested UI |
+|---|---|---|
+| `new` | a newly proposed belonging | "New" chip, needs review |
+| `matched` | the same belonging seen before; `id` is unchanged | "Updated" chip |
+| `identity_conflict` | the agent changed the item id; name + evidence suggest the same object | "Possible duplicate — review" banner, show `possible_match_item_id` |
+
+For `identity_conflict`, link to the suspected original
+(`items.find(i => i.id === item.possible_match_item_id)`) and let the reviewer
+decide. The backend never merges them automatically.
+
+If a reviewer had already decided a row, the follow-up's proposal is in
+`agent_proposal` instead of overwriting the confirmed values — show it as a
+"what the last run suggested" diff, never as the current truth.
+
+## Guarantees you can rely on
+
+- human corrections, confirmed fields, `revision`, reviewer names and decision
+  history are preserved across follow-ups;
+- question answers and finding resolutions stay attached to their
+  `question_id` / `finding_id` even when the agent rewrites the wording;
+- retries are safe: running the same follow-up twice creates no duplicates;
+- stale `if_revision` still returns `409` with `detail.current`.
+
+## Unverified note
+
+`review_answers` is sent to the agent, but it is **not yet in Person 2's published
+contract** (agent branch `78eebb9`). The UI does not need to change either way;
+treat answer round-tripping as unconfirmed until a live follow-up run is verified.

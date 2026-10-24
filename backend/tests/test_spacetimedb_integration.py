@@ -451,3 +451,35 @@ def test_same_revision_submitted_twice_is_rejected_at_the_database(live):
     rows = spacetime_db.sql(f"SELECT * FROM question WHERE id = '{question.id}'")
     assert rows[0]["revision"] == 1
     assert rows[0]["answer"] == "Yes"
+
+
+def test_reconciliation_state_and_evidence_ids_survive_restart(live):
+    from app.models import Case, EvidenceItem, Upload, UploadKind
+
+    case_id = _unique("case")
+    with TestClient(app) as client:
+        client.post("/api/cases", json={"title": "reconcile restart"})
+        store.cases[case_id] = Case(id=case_id, title="reconcile restart")
+        store.uploads["upl_r1"] = Upload(
+            id="upl_r1", case_id=case_id, kind=UploadKind.photo,
+            original_filename="room.jpg", content_type="image/jpeg",
+            size_bytes=10, sha256="x", evidence_id="ev_001",
+            url="/api/uploads/upl_r1/file",
+        )
+        store.items["itm_r1"] = EvidenceItem(
+            id="itm_r1", case_id=case_id, investigation_id="inv_r",
+            upload_id="upl_r1", agent_item_id="itm_001", name="Brown armchair",
+            reconciliation="matched", possible_match_item_id="itm_older",
+            agent_proposal={"name": "Brown armchair, water stained"},
+        )
+        spacetime_db.sync()
+
+    store.reset()
+    with TestClient(app) as client:
+        review = client.get(f"/api/cases/{case_id}/review").json()
+
+    assert review["evidence"][0]["evidence_id"] == "ev_001"
+    item = review["items"][0]
+    assert item["reconciliation"] == "matched"
+    assert item["possible_match_item_id"] == "itm_older"
+    assert item["agent_proposal"]["name"] == "Brown armchair, water stained"

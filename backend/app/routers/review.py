@@ -104,6 +104,9 @@ def case_review(case_id: str, refresh: bool = Query(default=True)) -> CaseReview
             revision=item.revision,
             updated_by=item.updated_by,
             updated_at=item.updated_at,
+            reconciliation=item.reconciliation,
+            possible_match_item_id=item.possible_match_item_id,
+            agent_proposal=item.agent_proposal,
         )
         for item in items
     ]
@@ -151,7 +154,9 @@ def _evidence(uploads, investigations) -> list[ReviewEvidence]:
         meta = agent.get(upload.original_filename, {})
         out.append(
             ReviewEvidence(
-                evidence_id=meta.get("evidence_id"),
+                # Stable id assigned at upload time; payload metadata is only a
+                # fallback for rows created before ids were persisted.
+                evidence_id=upload.evidence_id or meta.get("evidence_id"),
                 upload_id=upload.id,
                 filename=upload.original_filename,
                 evidence_type="photo" if upload.kind.value == "photo" else "receipt",

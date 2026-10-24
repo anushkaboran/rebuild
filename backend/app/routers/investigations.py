@@ -151,6 +151,7 @@ async def _run(
             room_name=room_hint or _room_of(case, upload),
             evidence=_build_evidence(uploads, transport, case),
             confirmed_items=_confirmed_items(investigation.case_id),
+            review_answers=_review_answers(investigation.case_id),
             transport=transport,
             previous_result_url=_previous_result_url(investigation),
         )
@@ -187,6 +188,11 @@ async def _run(
                 "credits_used": result.credits_used,
                 "evidence_transport": result.evidence_transport,
                 "evidence_ids": result.evidence_ids,
+                "follow_up": _is_follow_up(investigation),
+                "review_answers_sent": result.review_answers_sent,
+                "items_created": len(report.created) - len(report.flagged),
+                "items_reconciled": len(report.matched),
+                "items_flagged": len(report.flagged),
                 "summary": result.summary,
                 "result_payload": result.payload or None,
                 "item_ids": report.item_ids,
@@ -277,22 +283,44 @@ def _room_of(case, upload) -> str:
     return "room"
 
 
+def _evidence_id(upload) -> str:
+    """Assign an evidence id once per upload; later runs reuse it.
+
+    New uploads take the next free ev_### for the case, so existing ids are
+    never renumbered or reused.
+    """
+    if upload.evidence_id:
+        return upload.evidence_id
+    used = {
+        u.evidence_id
+        for u in store.uploads.values()
+        if u.case_id == upload.case_id and u.evidence_id
+    }
+    n = 1
+    while f"ev_{n:03d}" in used:
+        n += 1
+    evidence_id = f"ev_{n:03d}"
+    with store.lock:
+        store.uploads[upload.id] = upload.model_copy(update={"evidence_id": evidence_id})
+    return evidence_id
+
+
 def _build_evidence(uploads, transport: str, case) -> list:
-    """Assign stable ev_### IDs and (for the url transport) signed public URLs.
+    """Stable ev_### IDs and (for the url transport) signed public URLs.
 
     Classification comes from the upload's own `kind` field — photo vs receipt —
     never from the filename pattern.
     """
     default_description = case.notes if case is not None else None
     evidence = []
-    for index, item in enumerate(uploads, start=1):
+    for item in uploads:
         url = None
         if transport == "url":
             # Raises CREAO_EVIDENCE_URLS_UNAVAILABLE if no public base is set.
             url = evidence_urls.upload_url(item.id)
         evidence.append(
             creao.EvidenceFile(
-                evidence_id=f"ev_{index:03d}",
+                evidence_id=_evidence_id(item),
                 filename=item.original_filename,
                 content_type=item.content_type,
                 kind="photo" if item.kind.value == "photo" else "receipt",
@@ -302,6 +330,31 @@ def _build_evidence(uploads, transport: str, case) -> list:
             )
         )
     return evidence
+
+
+def _review_answers(case_id: str) -> list[dict]:
+    """Saved question answers, in the agent's `review_answers` shape.
+
+    Only answered questions are included. An answer is context for the agent —
+    it is never emitted as a confirmed inventory field.
+    """
+    answers = []
+    for question in store.list_questions(case_id):
+        if not question.answer:
+            continue
+        answers.append(
+            {
+                "question_id": question.question_id,
+                "question": question.question,
+                "item_id": question.item_id,
+                "answer": question.answer,
+                "answered_by": question.answered_by,
+                "answered_at": question.answered_at.isoformat()
+                if question.answered_at
+                else None,
+            }
+        )
+    return sorted(answers, key=lambda a: a["question_id"] or "")
 
 
 def _confirmed_items(case_id: str) -> list[dict]:
@@ -326,6 +379,21 @@ def _confirmed_items(case_id: str) -> list[dict]:
                     }
                 )
     return confirmed
+
+
+def _is_follow_up(investigation) -> bool:
+    """True when this case already has a completed investigation.
+
+    Deliberately independent of whether a `previous_result` URL could be built:
+    with no public base the URL is omitted, but the run is still a follow-up and
+    its results must reconcile rather than duplicate.
+    """
+    return any(
+        inv.id != investigation.id
+        and inv.case_id == investigation.case_id
+        and inv.status == InvestigationStatus.complete
+        for inv in store.list_investigations(investigation.case_id)
+    )
 
 
 def _previous_result_url(investigation) -> str | None:
