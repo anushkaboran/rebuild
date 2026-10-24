@@ -67,3 +67,39 @@ input[type="file"] { width: 100%; padding: 14px 0; }
   font-weight: 700;
 }
 .file-list li > span:not(.pdf-preview) { flex: 1; }
+
+.inventory-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.item-card {
+  margin: 0;
+  padding: 16px;
+  text-align: left;
+  color: #243d34;
+  background: #f8f8f3;
+  border: 1px solid #d8ddd1;
+}
+.item-card:hover { background: #edf2e8; }
+.item-card[aria-pressed="true"] { border: 2px solid #294e3e; background: #edf2e8; }
+.item-card strong, .item-card small { display: block; }
+.item-card strong { margin: 8px 0; }
+.item-card small { font-size: 11px; color: #657268; }
+.item-details { margin-top: 24px; padding-top: 16px; border-top: 1px solid #dedfd5; }
+.item-details p { font-size: 14px; line-height: 1.7; }
+.item-details details { padding: 12px 0; border-bottom: 1px solid #dedfd5; }
+.item-details summary { cursor: pointer; font-size: 13px; overflow-wrap: anywhere; }
+.item-fields div { padding: 10px 0; }
+.item-fields dt { text-transform: capitalize; font-size: 12px; color: #657268; }
+.item-fields dd { margin: 5px 0 0; font-size: 14px; }
+@media (max-width: 450px) { .inventory-grid { grid-template-columns: 1fr; } }
+
+.review-findings { margin-top: 28px; border-top: 1px solid #dedfd5; }
+.finding small, .question small { color: #657268; font-size: 12px; }
+.question { padding: 16px; background: #f8f8f3; border-radius: 10px; margin: 12px 0; }
+.question strong { font-size: 14px; line-height: 1.6; }
+
+.field-editor { padding: 16px 0; border-bottom: 1px solid #dedfd5; }
+.field-heading, .field-value { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.field-heading { margin-bottom: 10px; font-size: 12px; text-transform: capitalize; color: #657268; }
+.field-heading small { text-transform: none; }
+.field-value { font-size: 14px; }
+.field-input { display: block; width: 100%; padding: 12px; margin-top: 8px; border: 1px solid #d8ddd1; border-radius: 8px; font: inherit; background: #f8f8f3; color: #243d34; }
+.field-editor form button[type="submit"] { margin: 12px 0; }

@@ -1,3 +1,5 @@
+import Inventory from './Inventory'
+
 import { useState } from 'react'
 import './App.css'
 import EvidenceUpload from './EvidenceUpload'
@@ -69,7 +71,7 @@ function App() {
             </p>
           )}
         </form>{started && <EvidenceUpload />}
-      </main>
+      <Inventory /></main>
     </div>
   )
 }
