@@ -1,3 +1,4 @@
+import DownloadPdf from './DownloadPdf'
 import ItemCorrection from './ItemCorrection'
 import ReviewFindings from './ReviewFindings'
 import type { Finding, Question } from './ReviewFindings'
@@ -132,6 +133,7 @@ export default function Inventory({
 
   return (
     <section className="case-form">
+      {caseId && <DownloadPdf caseId={caseId} />}
       <p className="eyebrow">
         {caseId ? (simulated ? 'SIMULATED CASE RESULTS' : 'YOUR CASE INVENTORY') : 'SAVED DEMO CASE'}
       </p>
