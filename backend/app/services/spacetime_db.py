@@ -37,6 +37,8 @@ from ..models import (
     Case,
     CaseStatus,
     Comment,
+    Finding,
+    Question,
     DamageLevel,
     EvidenceItem,
     Investigation,
@@ -192,6 +194,13 @@ def _item_payload(item: EvidenceItem) -> dict[str, Any]:
         "currency": item.currency,
         "bbox": item.bbox.model_dump() if item.bbox else None,
         "agent_reasoning": item.agent_reasoning,
+        "brand": item.brand,
+        "model": item.model,
+        "purchase_date": item.purchase_date,
+        "purchase_price": item.purchase_price,
+        "location_in_image": item.location_in_image,
+        "visible_observations": item.visible_observations,
+        "user_confirmed_fields": item.user_confirmed_fields,
         "review_status": item.review_status,
         "status": item.status.value,
         "supporting_evidence_ids": item.supporting_evidence_ids,
@@ -212,6 +221,35 @@ def _revision_payload(rev: Revision) -> dict[str, Any]:
         "note": rev.note,
         "changes": rev.changes,
         "created_at": _iso(rev.created_at),
+    }
+
+
+def _finding_payload(finding: Finding) -> dict[str, Any]:
+    return {
+        "id": finding.id,
+        "case_id": finding.case_id,
+        "investigation_id": finding.investigation_id,
+        "finding_id": finding.finding_id,
+        "finding_type": finding.finding_type,
+        "item_ids": finding.item_ids,
+        "evidence_ids": finding.evidence_ids,
+        "explanation": finding.explanation,
+        "status": finding.status,
+        "resolution_reason": finding.resolution_reason,
+    }
+
+
+def _question_payload(question: Question) -> dict[str, Any]:
+    return {
+        "id": question.id,
+        "case_id": question.case_id,
+        "investigation_id": question.investigation_id,
+        "question_id": question.question_id,
+        "item_id": question.item_id,
+        "question": question.question,
+        "reason": question.reason,
+        "status": question.status,
+        "resolution_reason": question.resolution_reason,
     }
 
 
@@ -240,6 +278,8 @@ _PUSHERS = {
     "item": ("upsert_item", _item_payload),
     "revision": ("upsert_revision", _revision_payload),
     "comment": ("upsert_comment", _comment_payload),
+    "finding": ("upsert_finding", _finding_payload),
+    "question": ("upsert_question", _question_payload),
 }
 
 
@@ -257,6 +297,8 @@ def sync() -> dict[str, int]:
         ("item", store.items.values()),
         ("revision", store.revisions.values()),
         ("comment", store.comments.values()),
+        ("finding", store.findings.values()),
+        ("question", store.questions.values()),
     ]
 
     try:
@@ -389,9 +431,16 @@ def hydrate() -> dict[str, int]:
             damage_level=DamageLevel(row.get("damage_level") or "unknown"),
             confidence=float(row.get("confidence") or 0),
             estimated_value=row.get("estimated_value") or None,
-            currency=row.get("currency") or "USD",
+            currency=row.get("currency") or None,
             bbox=_json(row.get("bbox_json"), None),
             agent_reasoning=row.get("agent_reasoning") or None,
+            brand=row.get("brand") or None,
+            model=row.get("model") or None,
+            purchase_date=row.get("purchase_date") or None,
+            purchase_price=row.get("purchase_price") or None,
+            location_in_image=row.get("location_in_image") or None,
+            visible_observations=row.get("visible_observations") or None,
+            user_confirmed_fields=_json(row.get("user_confirmed_fields_json"), []),
             review_status=row.get("review_status") or None,
             status=ItemStatus(row.get("status") or "ai_suggested"),
             supporting_evidence_ids=_json(row.get("supporting_evidence_ids_json"), []),
@@ -415,6 +464,37 @@ def hydrate() -> dict[str, int]:
         )
     counts["revisions"] = len(revisions)
 
+    findings: dict[str, Finding] = {}
+    for row in _rows("finding"):
+        findings[row["id"]] = Finding(
+            id=row["id"],
+            case_id=row["case_id"],
+            investigation_id=row.get("investigation_id") or None,
+            finding_id=row.get("finding_id") or None,
+            finding_type=row.get("finding_type") or None,
+            item_ids=_json(row.get("item_ids_json"), []),
+            evidence_ids=_json(row.get("evidence_ids_json"), []),
+            explanation=row.get("explanation") or None,
+            status=row.get("status") or "needs_review",
+            resolution_reason=row.get("resolution_reason") or None,
+        )
+    counts["findings"] = len(findings)
+
+    questions: dict[str, Question] = {}
+    for row in _rows("question"):
+        questions[row["id"]] = Question(
+            id=row["id"],
+            case_id=row["case_id"],
+            investigation_id=row.get("investigation_id") or None,
+            question_id=row.get("question_id") or None,
+            item_id=row.get("item_id") or None,
+            question=row.get("question") or "",
+            reason=row.get("reason") or None,
+            status=row.get("status") or "open",
+            resolution_reason=row.get("resolution_reason") or None,
+        )
+    counts["questions"] = len(questions)
+
     comments: dict[str, Comment] = {}
     for row in _rows("comment"):
         comments[row["id"]] = Comment(
@@ -434,6 +514,8 @@ def hydrate() -> dict[str, int]:
         store.items.update(items)
         store.revisions.update(revisions)
         store.comments.update(comments)
+        store.findings.update(findings)
+        store.questions.update(questions)
 
     for obj in (
         list(cases.values())
@@ -442,6 +524,8 @@ def hydrate() -> dict[str, int]:
         + list(items.values())
         + list(revisions.values())
         + list(comments.values())
+        + list(findings.values())
+        + list(questions.values())
     ):
         payload = _PUSHERS[_table_for(obj)][1](obj)
         _synced[obj.id] = _hash(payload)
@@ -466,6 +550,10 @@ def _table_for(obj: Any) -> str:
         return "revision"
     if isinstance(obj, Comment):
         return "comment"
+    if isinstance(obj, Finding):
+        return "finding"
+    if isinstance(obj, Question):
+        return "question"
     raise TypeError(type(obj))
 
 

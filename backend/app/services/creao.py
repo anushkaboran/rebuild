@@ -171,8 +171,10 @@ class AgentItem:
     review_status: str | None = None
     brand: str | None = None
     model: str | None = None
+    purchase_date: str | None = None
     purchase_price: str | None = None
     currency: str | None = None
+    user_confirmed_fields: list[str] = field(default_factory=list)
     # Fields kept for the existing Rebuild model. The agent does not invent a
     # damage grade or a confidence score, so these stay neutral.
     category: str = "other"
@@ -826,8 +828,12 @@ def normalise_result(payload: Any) -> AgentResult:
                 review_status=_str(raw.get("review_status")),
                 brand=_str(raw.get("brand")),
                 model=_str(raw.get("model")),
+                purchase_date=_str(raw.get("purchase_date")),
                 purchase_price=_str(raw.get("purchase_price")),
                 currency=_str(raw.get("currency")),
+                user_confirmed_fields=[
+                    str(f) for f in (raw.get("user_confirmed_fields") or [])
+                ] if isinstance(raw.get("user_confirmed_fields"), list) else [],
                 room=_str(raw.get("room")),
                 description=_str(raw.get("location_in_image")),
                 condition=_str(raw.get("visible_observations")),
@@ -843,6 +849,68 @@ def normalise_result(payload: Any) -> AgentResult:
     if isinstance(payload, dict):
         summary = _str(payload.get("case_summary"))
     return AgentResult(items=items, summary=summary, mode="live", stub=False)
+
+
+def normalise_findings(payload: Any) -> list[dict[str, Any]]:
+    """Copy the agent's findings[] verbatim (ids preserved, nothing inferred)."""
+    if not isinstance(payload, dict):
+        return []
+    out: list[dict[str, Any]] = []
+    for raw in payload.get("findings") or []:
+        if not isinstance(raw, dict):
+            continue
+        out.append(
+            {
+                "finding_id": _str(raw.get("finding_id")),
+                "finding_type": _str(raw.get("type")),
+                "item_ids": [str(i) for i in (raw.get("item_ids") or [])],
+                "evidence_ids": [str(e) for e in (raw.get("evidence_ids") or [])],
+                "explanation": _str(raw.get("explanation")),
+                "status": _str(raw.get("status")) or "needs_review",
+                "resolution_reason": _str(raw.get("resolution_reason")),
+            }
+        )
+    return out
+
+
+def normalise_questions(payload: Any) -> list[dict[str, Any]]:
+    if not isinstance(payload, dict):
+        return []
+    out: list[dict[str, Any]] = []
+    for raw in payload.get("questions") or []:
+        if not isinstance(raw, dict):
+            continue
+        out.append(
+            {
+                "question_id": _str(raw.get("question_id")),
+                "item_id": _str(raw.get("item_id")),
+                "question": _str(raw.get("question")) or "",
+                "reason": _str(raw.get("reason")),
+                "status": _str(raw.get("status")) or "open",
+                "resolution_reason": _str(raw.get("resolution_reason")),
+            }
+        )
+    return out
+
+
+def normalise_evidence(payload: Any) -> list[dict[str, Any]]:
+    """Evidence metadata as the agent reported it (no file paths)."""
+    if not isinstance(payload, dict):
+        return []
+    out: list[dict[str, Any]] = []
+    for raw in payload.get("evidence") or []:
+        if not isinstance(raw, dict):
+            continue
+        out.append(
+            {
+                "evidence_id": _str(raw.get("evidence_id")),
+                "filename": _str(raw.get("filename")) or "",
+                "evidence_type": _str(raw.get("evidence_type")) or "unknown",
+                "readable": raw.get("readable"),
+                "description": _str(raw.get("description")),
+            }
+        )
+    return out
 
 
 def _str(value: Any) -> str | None:

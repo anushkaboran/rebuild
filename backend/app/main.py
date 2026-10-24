@@ -32,6 +32,7 @@ from .routers import (
     health,
     investigations,
     recovery,
+    review,
     uploads,
 )
 
@@ -100,7 +101,7 @@ def create_app() -> FastAPI:
 
     # Every route lives under /api except the docs/openapi UI.
     for module in (
-        health, cases, uploads, investigations, evidence, evidence_public, recovery, exports, demo
+        health, cases, uploads, investigations, evidence, evidence_public, recovery, review, exports, demo
     ):
         app.include_router(module.router)
 

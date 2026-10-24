@@ -19,7 +19,9 @@ from .models import (
     Comment,
     EvidenceItem,
     Event,
+    Finding,
     Investigation,
+    Question,
     Revision,
     Upload,
 )
@@ -38,6 +40,8 @@ class Store:
         self.investigations: dict[str, Investigation] = {}
         self.comments: dict[str, Comment] = {}
         self.revisions: dict[str, Revision] = {}   # revision_id -> Revision
+        self.findings: dict[str, Finding] = {}
+        self.questions: dict[str, Question] = {}
         self.events: list[Event] = []
 
     # -- lifecycle ---------------------------------------------------------- #
@@ -51,6 +55,8 @@ class Store:
                 self.investigations,
                 self.comments,
                 self.revisions,
+                self.findings,
+                self.questions,
             ):
                 collection.clear()
             self.events.clear()
@@ -95,6 +101,14 @@ class Store:
                 (c for c in self.comments.values() if c.case_id == case_id),
                 key=lambda c: c.created_at,
             )
+
+    def list_findings(self, case_id: str) -> list[Finding]:
+        with self._lock:
+            return [f for f in self.findings.values() if f.case_id == case_id]
+
+    def list_questions(self, case_id: str) -> list[Question]:
+        with self._lock:
+            return [q for q in self.questions.values() if q.case_id == case_id]
 
     def list_revisions(self, item_id: str) -> list[Revision]:
         with self._lock:
