@@ -275,3 +275,25 @@
   .inventory-field-section-heading { padding: 13px 14px; }
   .inventory-fields { padding: 12px; }
 }
+
+/* Saved inventories sit inside a light case panel. */
+.case-form .inventory-workspace {
+  --ink: #252538;
+  --muted: #626274;
+  --line: #d9dbe5;
+}
+.case-form .inventory-workspace .inventory-heading h1 {
+  color: #252538;
+}
+.case-form .inventory-workspace .helper,
+.case-form .inventory-workspace .inventory-sample-banner,
+.case-form .inventory-workspace .inventory-toolbar-end > span {
+  color: #626274;
+}
+.case-form .inventory-workspace [role="alert"] {
+  color: #a22d13;
+  overflow-wrap: anywhere;
+}
+.inventory-workspace .investigation-controls {
+  margin-bottom: 20px;
+}
