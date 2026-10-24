@@ -77,16 +77,6 @@ function UploadIcon() {
   )
 }
 
-function TipIcon({ kind }: { kind: 'photo' | 'detail' | 'receipt' }) {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      {kind === 'photo' && <><rect x="3" y="4" width="18" height="16" rx="3" /><circle cx="8" cy="9" r="1.5" /><path d="m3 17 5-5 4 4 3-3 6 6" /></>}
-      {kind === 'detail' && <><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4.5 4.5M8 10.5h5M10.5 8v5" /></>}
-      {kind === 'receipt' && <><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" /><path d="M9 7h6M9 11h6M9 15h3" /></>}
-    </svg>
-  )
-}
-
 export default function EvidenceUpload({ room = 'Unassigned room', onExploreDemo, onCountChange, onFilesChange, onCreateItems }: EvidenceUploadProps) {
   const [{ files, errors }, dispatch] = useReducer(selectionReducer, { files: [], errors: [] })
   const [isDragging, setIsDragging] = useState(false)
@@ -114,8 +104,7 @@ export default function EvidenceUpload({ room = 'Unassigned room', onExploreDemo
     <section className="evidence-workspace" aria-labelledby="evidence-heading">
       <div className="evidence-section-heading">
         <div>
-          <h2 id="evidence-heading">Every detail helps tell the story.</h2>
-          <p>Bring photos and receipts together, one room at a time.</p>
+          <h2 id="evidence-heading">Photos &amp; receipts</h2>
         </div>
         <span className="evidence-room-badge">
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m3 8 7-5 7 5v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" /><path d="M8 17v-6h4v6" stroke="currentColor" strokeWidth="1.4" /></svg>
@@ -156,7 +145,7 @@ export default function EvidenceUpload({ room = 'Unassigned room', onExploreDemo
             }}
           >
             <span className="evidence-upload-icon"><UploadIcon /></span>
-            <h4>{isDragging ? 'Drop your files here' : 'Start with what you have'}</h4>
+            <h4>{isDragging ? 'Drop your files here' : 'Select your files'}</h4>
             <p>Drag and drop photos or receipts here</p>
             <input
               ref={inputRef}
@@ -223,35 +212,13 @@ export default function EvidenceUpload({ room = 'Unassigned room', onExploreDemo
 
           <div className="evidence-local-note">
             <svg width="17" height="17" viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="3" y="4" width="14" height="10" rx="1.7" stroke="currentColor" strokeWidth="1.3" /><path d="M7 17h6M10 14v3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg>
-            <p>Files are selected locally. Nothing is uploaded or processed. Refreshing this page clears your selections.</p>
+            <p>Local files only. Nothing has been uploaded.</p>
           </div>
         </div>
 
-        <aside className="evidence-sidebar" aria-label="Evidence tips">
-          <div className="evidence-tips-card">
-            <span className="evidence-tip-eyebrow">A GOOD PLACE TO START</span>
-            <h3>A few helpful details</h3>
-            <p>There’s no perfect starting point. Add what you can, when you can.</p>
-            <ul className="evidence-tip-list">
-              <li><span className="evidence-tip-icon"><TipIcon kind="photo" /></span><div><strong>The bigger picture</strong><p>A wide photo helps document the room and what’s in it.</p></div></li>
-              <li><span className="evidence-tip-icon"><TipIcon kind="detail" /></span><div><strong>The small details</strong><p>Close-ups of labels, serial numbers, or damage add context.</p></div></li>
-              <li><span className="evidence-tip-icon"><TipIcon kind="receipt" /></span><div><strong>A paper trail</strong><p>Receipts and invoices can help you record purchase details.</p></div></li>
-            </ul>
-          </div>
 
-          {onExploreDemo && (
-            <div className="evidence-demo-card">
-              <span className="evidence-demo-badge">SAMPLE WORKSPACE</span>
-              <h3>Take a look around first.</h3>
-              <p>Explore an example inventory with sample items and evidence.</p>
-              <button type="button" className="evidence-demo-button" onClick={onExploreDemo}>
-                Explore sample inventory <span aria-hidden="true">↗</span>
-              </button>
-              <small>Sample data is separate from your files.</small>
-            </div>
-          )}
-        </aside>
       </div>
+      {onExploreDemo && <button type="button" className="button-quiet evidence-sample-link" onClick={onExploreDemo}>Open sample inventory <span aria-hidden="true">↗</span></button>}
     </section>
   )
 }

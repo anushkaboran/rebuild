@@ -282,13 +282,13 @@ export default function Inventory({ activeView, demoRequested, demoRequestId = 0
 
   return (
     <section className="inventory-workspace" aria-labelledby="inventory-title">
-      <div className="inventory-heading"><div><p className="eyebrow">{activeView === 'review' ? 'A LITTLE CLARITY GOES A LONG WAY' : 'EVERY BELONGING HAS A STORY'}</p><h1 id="inventory-title">{activeView === 'review' ? 'Let’s fill in the gaps.' : 'Your recovery inventory.'}</h1><p>{activeView === 'review' ? 'Open an item to work through its questions, evidence, and details.' : 'A little space for everything that matters. Explore an item to take the next step.'}</p></div><button type="button" className="button-primary inventory-create-button" onClick={() => setCreating(true)}><span aria-hidden="true">＋</span> Create item</button></div>
+      <div className="inventory-heading"><div><p className="eyebrow">{activeView === 'review' ? 'REVIEW' : 'INVENTORY'}</p><h1 id="inventory-title">{activeView === 'review' ? 'Review your items.' : 'Your inventory.'}</h1></div><button type="button" className="button-primary inventory-create-button" onClick={() => setCreating(true)}><span aria-hidden="true">＋</span> Create item</button></div>
 
       <div className="inventory-scope-tabs" aria-label="Inventory source"><button type="button" aria-pressed={!isSample} onClick={() => chooseScope('yours')}>Your items <span>{userItems.length}</span></button><button type="button" aria-pressed={isSample} onClick={() => chooseScope('sample')}>Sample inventory <span>8</span></button></div>
 
       {displayedItems.length > 0 && <div className="inventory-stats" aria-label="Inventory summary"><div className="inventory-stat"><span className="inventory-stat-icon"><InventoryIcon name="layers" /></span><div><span>Total items</span><strong>{displayedItems.length}<small>belongings recorded</small></strong></div></div><div className="inventory-stat"><span className="inventory-stat-icon"><InventoryIcon name="file" /></span><div><span>{isSample ? 'Sample evidence' : 'Photos attached'}</span><strong>{records?.evidence.length ?? 0}<small>{isSample ? 'source descriptions' : 'selected by you'}</small></strong></div></div><div className="inventory-stat"><span className="inventory-stat-icon inventory-stat-icon-warm"><InventoryIcon name={isSample ? 'review' : 'check'} /></span><div><span>{isSample ? 'Open review tasks' : 'Confirmed fields'}</span><strong>{isSample ? openTaskCount : confirmedFieldCount}<small>{isSample ? 'across this sample case' : 'details you provided'}</small></strong></div></div></div>}
 
-      <div className="inventory-sample-banner"><InventoryIcon name="info" /><p>{isSample ? <><strong>Sample inventory.</strong> These records are separate from your uploads. Photos you choose are previews; they don’t change the sample’s findings.</> : <><strong>Your items, added by you.</strong> Choose a photo and name each belonging. Automatic photo analysis isn’t connected yet.</>} Edits stay in this tab and reset on refresh.</p></div>
+      <div className="inventory-sample-banner"><InventoryIcon name="info" /><p>{isSample ? 'Sample records — separate from your uploads.' : 'Manually added items. Automatic photo analysis is not connected.'}</p></div>
 
       {displayedItems.length === 0 ? (
         <div className="inventory-welcome-card"><div className="inventory-empty-art" aria-hidden="true"><div className="inventory-paper inventory-paper-back" /><div className="inventory-paper"><InventoryIcon name="layers" /><span /><span /><span /></div><div className="inventory-art-check"><InventoryIcon name="check" /></div></div><p className="eyebrow">A PLACE FOR THE THINGS THAT MATTER</p><h2>{isSample ? 'Explore a clearer picture.' : 'Start with one belonging.'}</h2><p>{isSample ? 'See how item details, supporting evidence, and review questions fit together in a sample living room inventory.' : 'Choose one of your photos, name the item, and add what you know. You can come back to the rest.'}</p><button className="button-primary inventory-demo-button" type="button" onClick={isSample ? error ? () => { setError(''); setRetryCount(count => count + 1) } : onDemoRequest : () => setCreating(true)} disabled={loading}>{loading ? 'Opening sample inventory…' : isSample ? error ? 'Try again' : 'Explore sample inventory' : 'Create your first item'}{!loading && <InventoryIcon name="arrow" />}</button>{error && isSample && <p className="inventory-error" role="alert">{error}</p>}<small>{isSample ? 'Sample records only. No automated analysis of your files.' : imageFiles.length ? `${imageFiles.length} selected ${imageFiles.length === 1 ? 'photo is' : 'photos are'} ready to use.` : 'Add a photo directly, or choose files from Evidence.'}</small></div>
@@ -301,21 +301,40 @@ export default function Inventory({ activeView, demoRequested, demoRequestId = 0
               const expanded = expandedId === item.item_id
               const photo = photoFor(item)
               return (
-                <Disclosure key={item.item_id} open={expanded} onOpenChange={open => setExpandedId(open ? item.item_id : null)} className={`inventory-card inventory-card-${index % 3}${expanded ? ' is-expanded' : ''}`} transition={{ duration: 0.28, ease: 'easeInOut' }}>
+                <Disclosure
+                  key={item.item_id}
+                  open={expanded}
+                  onOpenChange={open => setExpandedId(open ? item.item_id : null)}
+                  className={`inventory-card inventory-card-${index % 3}${expanded ? ' is-expanded' : ''}`}
+                  variants={{ expanded: { y: 0 }, collapsed: { y: 12 } }}
+                  transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+                >
                   <div className={`inventory-card-media${photo ? ' has-photo' : ''}`}>
-                    {photo ? <PhotoPreview file={photo} className="inventory-card-image" /> : <div className="inventory-photo-placeholder"><span className="inventory-placeholder-orbit" /><InventoryIcon name={itemIcon(item.name)} /><span>No photo attached</span></div>}
-                    <span className="inventory-card-room">{item.room}</span>
-                    {photoPicker(item)}
+                    <DisclosureTrigger className="inventory-image-trigger" aria-label={`${expanded ? 'Hide' : 'Show'} details for ${item.name}`}>
+                      {photo
+                        ? <PhotoPreview file={photo} className="inventory-card-image" />
+                        : <span className="inventory-photo-placeholder"><InventoryIcon name={itemIcon(item.name)} /><span>No photo attached</span></span>}
+                      <span className="inventory-card-room">{item.room}</span>
+                    </DisclosureTrigger>
+                    <div className="inventory-card-sheet">
+                      <button type="button" className="inventory-card-trigger" aria-expanded={expanded} onClick={() => setExpandedId(expanded ? null : item.item_id)}>
+                        <span><strong>{item.name}</strong><span className={`inventory-status ${taskCount ? 'inventory-status-review' : 'inventory-status-neutral'}`}><span />{taskCount ? `${taskCount} review ${taskCount === 1 ? 'task' : 'tasks'}` : isSample ? 'Details to confirm' : 'Added by you'}</span></span>
+                        <span className="inventory-card-toggle" aria-hidden="true">{expanded ? '−' : '+'}</span>
+                      </button>
+                      <DisclosureContent className="inventory-card-disclosure">
+                        <div>
+                          <p>{item.visible_observations}</p>
+                          <div className="inventory-card-summary"><span>{item.user_confirmed_fields.length} fields confirmed</span><span>{item.supporting_evidence_ids.length} {isSample ? 'sources' : item.supporting_evidence_ids.length === 1 ? 'photo' : 'photos'}</span></div>
+                          <button type="button" className="button-primary inventory-review-button" onClick={() => openItem(item)}>View more<InventoryIcon name="arrow" /></button>
+                        </div>
+                      </DisclosureContent>
+                    </div>
                   </div>
-                  {photoErrors[item.item_id] && <p className="inventory-photo-error" role="alert">{photoErrors[item.item_id]}</p>}
-                  <DisclosureTrigger className="inventory-card-trigger"><span><strong>{item.name}</strong><span className={`inventory-status ${taskCount ? 'inventory-status-review' : 'inventory-status-neutral'}`}><span />{taskCount ? `${taskCount} review ${taskCount === 1 ? 'task' : 'tasks'}` : isSample ? 'Details to confirm' : 'Added by you'}</span></span><span className="inventory-card-toggle" aria-hidden="true">{expanded ? '−' : '+'}</span></DisclosureTrigger>
-                  <DisclosureContent className="inventory-card-disclosure"><div><p>{item.visible_observations}</p><div className="inventory-card-summary"><span>{item.user_confirmed_fields.length} fields confirmed</span><span>{item.supporting_evidence_ids.length} {isSample ? 'source descriptions' : item.supporting_evidence_ids.length === 1 ? 'photo attached' : 'photos attached'}</span></div><button type="button" className="button-primary inventory-review-button" onClick={() => openItem(item)}>Review item<InventoryIcon name="arrow" /></button></div></DisclosureContent>
                 </Disclosure>
               )
             })}
           </div>
           {!filteredItems.length && <div className="inventory-no-results"><InventoryIcon name="search" /><h3>No matching belongings</h3><p>Try a different name or room.</p><button type="button" onClick={() => { setSearch(''); setRoom('all') }}>Clear filters</button></div>}
-          <p className="inventory-grid-note"><InventoryIcon name="info" />A confirmed field doesn’t mean the entire item is verified. Open a card to review the full picture.</p>
         </>
       )}
 
@@ -327,7 +346,7 @@ export default function Inventory({ activeView, demoRequested, demoRequestId = 0
             <div className="inventory-modal-photo-row">{photoPicker(selected, true)}{photoErrors[selected.item_id] && <p className="inventory-photo-error" role="alert">{photoErrors[selected.item_id]}</p>}<p>{isSample ? 'Chosen photos are previews. Sample evidence stays separate.' : photoFor(selected) ? 'This photo was explicitly selected by you.' : 'No photo attached. Choose one to add it to this item.'}</p></div>
             <div className="inventory-tabs" aria-label="Item information">{panelNames.map(value => <button type="button" key={value} aria-pressed={panel === value} onClick={() => setPanel(value)}>{value === 'details' ? 'Item details' : value === 'evidence' ? 'Evidence' : 'Review'}{value === 'review' && itemTaskCount(selected.item_id) > 0 && <span>{itemTaskCount(selected.item_id)}</span>}</button>)}</div>
             <TransitionPanel keepMounted activeIndex={panelNames.indexOf(panel)} className="inventory-modal-panels" transition={{ duration: 0.22, ease: 'easeInOut' }}>
-              <div className="inventory-detail-body"><div className="inventory-section-heading"><h3>{isSample ? 'What the sample describes' : 'Your notes'}</h3><span>{isSample ? 'From sample evidence' : 'Added by you'}</span></div><div className="inventory-observation"><p>{selected.visible_observations}</p>{isSample && <details><summary>Where it appears in the sample image</summary><p>{selected.location_in_image}</p></details>}</div><div className="inventory-section-heading inventory-fields-heading"><div><h3>A few details to make it yours</h3><p>Confirm what you know. Unknown details can wait.</p></div></div><div className="inventory-fields">{editableFields.map(field => <FieldEditor key={selected.item_id + field} label={field} value={selected[field]} confirmed={selected.user_confirmed_fields.includes(field)} onConfirm={value => confirmField(field, value)} />)}</div></div>
+              <div className="inventory-detail-body"><div className="inventory-section-heading"><h3>{isSample ? 'What the sample describes' : 'Your notes'}</h3><span>{isSample ? 'From sample evidence' : 'Added by you'}</span></div><div className="inventory-observation"><p>{selected.visible_observations}</p>{isSample && <details><summary>Where it appears in the sample image</summary><p>{selected.location_in_image}</p></details>}</div><div className="inventory-section-heading inventory-fields-heading"><div><h3>Item details</h3></div></div><div className="inventory-fields">{editableFields.map(field => <FieldEditor key={selected.item_id + field} label={field} value={selected[field]} confirmed={selected.user_confirmed_fields.includes(field)} onConfirm={value => confirmField(field, value)} />)}</div></div>
               <div className="inventory-detail-body inventory-evidence-panel"><div className="inventory-section-heading"><div><h3>Supporting evidence</h3><p>{isSample ? 'Descriptions from the sample case. Original sample files aren’t included.' : 'Photos you selected for this item. No automated analysis has been performed.'}</p></div></div>{selected.supporting_evidence_ids.length === 0 && <p className="inventory-muted">No photo is attached yet. Add one using the photo controls above.</p>}{selected.supporting_evidence_ids.map(id => { const evidence = records.evidence.find(entry => entry.evidence_id === id); return <article className="inventory-evidence-card" key={id}><div className="inventory-evidence-file"><span><InventoryIcon name="file" /></span><div><strong>{evidence?.filename ?? 'File unavailable'}</strong><small>{isSample ? 'Sample source description' : 'Selected photo'}</small></div></div>{!isSample && photoFor(selected) && <PhotoPreview file={photoFor(selected)!} className="inventory-evidence-photo" />}<p>{evidence?.description ?? 'No description is available for this source.'}</p></article> })}</div>
               <div className="inventory-detail-body inventory-review-panel">{isSample ? <ReviewFindings itemId={selected.item_id} findings={records.findings} questions={records.questions} resolutions={resolutions} onResolve={(id, reason) => setResolutions(current => ({ ...current, [id]: reason }))} onUndo={undoResolution} /> : <div className="inventory-manual-review"><InventoryIcon name="check" /><h3>Let’s start with what you know.</h3><p>This item was added by you. Automatic review isn’t connected yet, so there are no generated questions or findings.</p><button type="button" className="button-primary" onClick={() => setPanel('details')}>Confirm item details<InventoryIcon name="arrow" /></button><small>{selected.user_confirmed_fields.length} fields confirmed · Saved in this tab</small></div>}</div>
             </TransitionPanel>
