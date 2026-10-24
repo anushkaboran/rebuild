@@ -149,7 +149,7 @@ export default function ItemCorrection({
             <textarea value={note} maxLength={1000}
               onChange={event => setNote(event.target.value)} />
           </label>
-          <button type="submit">
+          <button className="button-primary" type="submit">
             {saving ? 'Saving…' : 'Save correction'}
           </button>
         </fieldset>

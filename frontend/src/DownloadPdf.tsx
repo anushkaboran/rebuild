@@ -38,7 +38,7 @@ export default function DownloadPdf({ caseId }: { caseId: string }) {
 
   return (
     <div>
-      <button type="button" disabled={downloading}
+      <button className="button-primary" type="button" disabled={downloading}
         onClick={() => void download()}>
         {downloading ? 'Preparing PDF…' : 'Download recovery record PDF ↓'}
       </button>

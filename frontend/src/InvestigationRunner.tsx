@@ -13,10 +13,12 @@ export default function InvestigationRunner({
   caseId,
   uploadIds,
   room,
+  onStarted,
 }: {
   caseId: string
   uploadIds: string[]
   room: string
+  onStarted?: () => void
 }) {
   const [run, setRun] = useState<Investigation | null>(null)
   const [starting, setStarting] = useState(false)
@@ -54,6 +56,7 @@ export default function InvestigationRunner({
         throw new Error('The server did not return an investigation ID.')
       }
       setRun(data)
+      onStarted?.()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Request failed.')
     } finally {
@@ -105,7 +108,7 @@ export default function InvestigationRunner({
   return (
     <div className="investigation-controls">
       {!run && (
-        <button type="button" disabled={starting} onClick={() => void start()}>
+        <button className="button-primary" type="button" disabled={starting} onClick={() => void start()}>
           {starting ? 'Starting…' : 'Start investigation →'}
         </button>
       )}
@@ -133,7 +136,7 @@ export default function InvestigationRunner({
       {(error || run?.error) && <p role="alert">{error || run?.error}</p>}
 
       {error && run && run.status !== 'complete' && run.status !== 'failed' && (
-        <button type="button" onClick={() => setPollAttempt(value => value + 1)}>
+        <button className="button-primary" type="button" onClick={() => setPollAttempt(value => value + 1)}>
           Check progress again
         </button>
       )}
