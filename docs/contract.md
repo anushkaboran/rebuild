@@ -1,6 +1,6 @@
 # Rebuild API contract
 
-**Status:** v0.6.2 — owned by Person 3 (backend). URL-based evidence + recovery of already-completed CREAO runs.
+**Status:** v0.6.3 — owned by Person 3 (backend). URL-based evidence + recovery of already-completed CREAO runs.
 **Base URL (local):** `http://localhost:8000`
 **Machine-readable schema:** `GET /openapi.json` · interactive docs at `/docs`
 
@@ -786,6 +786,90 @@ arrays cover questions and findings. All previous top-level fields are unchanged
 
 ---
 
+## 6f. Follow-up investigations
+
+Starting a second investigation for a case (`POST /api/cases/{id}/investigations`)
+now reuses stable evidence IDs, sends saved answers to the agent, and reconciles
+the new inventory into the existing one instead of duplicating it.
+
+### What the agent receives
+
+`inputs` keeps every existing field and adds one:
+
+| Field | Type | Notes |
+|---|---|---|
+| `review_answers` | **JSON string** | saved human answers; `[]` when nothing is answered |
+
+```json
+"[{\"question_id\":\"q_001\",\"question\":\"Is the brown armchair yours?\",\"item_id\":\"itm_001\",\"answer\":\"Yes, mine.\",\"answered_by\":\"priya\",\"answered_at\":\"2026-10-24T19:40:02Z\"}]"
+```
+
+- unanswered questions are **omitted**;
+- an answer is context for the agent and is **never** emitted inside
+  `confirmed_items` — an answer does not confirm an inventory field;
+- `confirmed_items`, `previous_result` and the evidence arrays are unchanged.
+
+> ⚠️ **Unverified against the agent.** `review_answers` is not yet listed in
+> `agent/SKILL.md` / `agent/docs/contract.md` (agent branch `78eebb9`). It is sent
+> as specified here; the agent ignores inputs it does not know. Person 2 must
+> confirm the shape before a real follow-up run relies on it.
+
+### Evidence IDs are stable
+
+Each upload gets an `evidence_id` (`ev_001`…) **once**, at first use, and it is
+persisted. Follow-up runs reuse it; a newly uploaded file takes the next free
+number. Existing IDs are never renumbered, and a result that references an
+unknown ID is rejected (`CREAO_INVALID_RESULT`) rather than being mapped onto
+some other file.
+
+### Item reconciliation
+
+| `reconciliation` | Meaning |
+|---|---|
+| `new` | genuinely new proposal from this run |
+| `matched` | reconciled with an existing belonging; **backend `id` preserved** |
+| `identity_conflict` | the agent changed the item id but name + shared evidence suggest the same object — **flagged, never merged** |
+
+Additional item fields: `possible_match_item_id` (for conflicts) and
+`agent_proposal` (the latest AI proposal when a human already decided the row).
+
+Rules:
+
+- matching is by `agent_item_id` within the case, so a retry or a follow-up can
+  never create a second row for the same belonging;
+- an item a human touched (status change, revision > 1, confirmed fields) is
+  **never overwritten** — the incoming values go to `agent_proposal`;
+- an untouchted item is refreshed in place and keeps its id and revision;
+- a different object with a similar name stays a separate row; only
+  name **and** a shared evidence reference produce an `identity_conflict` flag;
+- findings and questions are matched on `(case, finding_id/question_id)`, so
+  their agent text updates while answers, resolutions, reviewers, timestamps,
+  revisions and history survive.
+
+### Investigation metadata
+
+```json
+{
+  "follow_up": true,
+  "review_answers_sent": 1,
+  "items_created": 2,
+  "items_reconciled": 1,
+  "items_flagged": 1,
+  "status": "complete"
+}
+```
+
+`follow_up` is true whenever the case already had a completed investigation —
+independent of whether a `previous_result` URL could be built.
+
+### Frontend fields on review items
+
+`GET /api/cases/{id}/review` adds, per item: `reconciliation`,
+`possible_match_item_id`, `agent_proposal`. Everything previously returned is
+unchanged, so existing UI code keeps working.
+
+---
+
 ## 7. Comments, events and export
 
 ### `GET /api/cases/{case_id}/comments` → `Comment[]`
@@ -929,6 +1013,7 @@ which is normalised to `unknown`).
 
 | Version | Change |
 |---|---|
+| 0.6.3 | Follow-up investigations: `review_answers` JSON-string input, stable per-upload `evidence_id`, case-level item reconciliation (`new`/`matched`/`identity_conflict`), findings/questions matched by agent id so human decisions survive, plus `follow_up` / `items_*` counters. |
 | 0.6.2 | Question answers (`PATCH /api/cases/{id}/questions/{q}`) and finding resolutions (`PATCH /api/cases/{id}/findings/{f}`) with per-record revisions, 400/404/409 handling, an append-only `decision_event` audit trail, persistence in SpacetimeDB and live broadcast. Review responses now embed answers/resolutions. |
 | 0.6.1 | `GET /api/cases/{id}/review`: agent fields (brand, model, purchase_date, purchase_price, nullable currency, location_in_image, visible_observations, user_confirmed_fields), findings, questions and decisions, with both backend and agent ids. Nullable currency no longer defaulted to USD; `purchase_price` never folded into `estimated_value`. |
 | 0.5 | `POST /api/creao/recover` imports an already-completed CREAO run without starting a new one: shared import pipeline, validation-before-write, idempotent retries, human corrections preserved, case/upload restoration from supplied metadata + disk. |

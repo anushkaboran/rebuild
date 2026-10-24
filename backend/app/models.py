@@ -135,6 +135,9 @@ class Upload(BaseModel):
     size_bytes: int
     sha256: str
     uploaded_by: str = "anonymous"
+    # Stable evidence id assigned once, on first upload (ev_001…). Follow-up
+    # runs reuse it so manifests and result references stay comparable.
+    evidence_id: Optional[str] = None
     url: str
     # Internal storage path — never serialised to clients.
     stored_path: str = Field(default="", exclude=True)
@@ -170,6 +173,14 @@ class EvidenceItem(BaseModel):
     agent_item_id: Optional[str] = None
     supporting_evidence_ids: list[str] = Field(default_factory=list)
     review_status: Optional[str] = None
+    # How this row got here: "new" (first proposal), "matched" (reconciled with
+    # an existing belonging), "identity_conflict" (agent changed the item id but
+    # the evidence suggests it may be the same object — needs a human).
+    reconciliation: str = "new"
+    possible_match_item_id: Optional[str] = None
+    # Latest AI proposal when a follow-up run wanted to change a row that a
+    # human already decided. Kept separate from the human-confirmed values.
+    agent_proposal: Optional[dict[str, Any]] = None
     # Agent-reported identity fields, copied verbatim (never inferred).
     brand: Optional[str] = None
     model: Optional[str] = None
@@ -261,6 +272,12 @@ class Investigation(BaseModel):
     # True when the result was imported from an already-completed CREAO run
     # rather than observed live.
     recovered: bool = False
+    # Follow-up bookkeeping
+    follow_up: bool = False
+    review_answers_sent: int = 0
+    items_created: int = 0
+    items_reconciled: int = 0
+    items_flagged: int = 0
     item_ids: list[str] = Field(default_factory=list)
     # Full validated rebuild-result.json, kept for follow-up runs. Never
     # serialised to clients (it can be large and is agent-owned).
@@ -403,6 +420,10 @@ class ReviewItem(BaseModel):
     revision: int = 1
     updated_by: Optional[str] = None
     updated_at: datetime = Field(default_factory=utcnow)
+    # Follow-up reconciliation (see Investigation.review_answers_sent)
+    reconciliation: str = "new"               # new | matched | identity_conflict
+    possible_match_item_id: Optional[str] = None
+    agent_proposal: Optional[dict[str, Any]] = None
 
 
 class ReviewFinding(Finding):
