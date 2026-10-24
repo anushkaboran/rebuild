@@ -55,7 +55,7 @@ function App() {
   }
 
   return (
-    <MotionConfig reducedMotion="user"><div className="app-shell">
+    <MotionConfig reducedMotion="user"><div className="app-shell" data-view={view}>
       <a href="#main-content" className="skip-link">Skip to workspace</a>
       <header className="topbar">
         <a className="brand" href="#overview" onClick={event => { event.preventDefault(); navigate('overview') }}>rebuild<span className="brand-dot">.</span></a>

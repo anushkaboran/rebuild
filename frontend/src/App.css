@@ -14,6 +14,11 @@
 .local-pill { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; color: #c4cbe3; border: 1px solid #58648e; border-radius: 30px; font-size: 10px; white-space: nowrap; }
 .local-pill > span { width: 5px; height: 5px; background: var(--orange); border-radius: 50%; }
 .app-main { min-height: calc(100vh - 110px); display: flex; flex-direction: column; }
+.app-shell[data-view='overview'] .app-main {
+  background-image: linear-gradient(to right, rgb(153 171 230 / .065) 1px, transparent 1px), linear-gradient(to bottom, rgb(153 171 230 / .065) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-position: center top;
+}
 .main-content { width: min(1280px, calc(100% - 88px)); margin: 0 auto; padding: 48px 0 40px; outline: none; }
 .overview-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 80px; align-items: center; min-height: calc(100vh - 258px); }
 .hero-copy { padding: 10px 0 24px; }

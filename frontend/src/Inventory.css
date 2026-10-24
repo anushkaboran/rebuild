@@ -198,12 +198,12 @@
 .inventory-workspace .inventory-scope-tabs button { color: #b9c2df; }
 .inventory-workspace .inventory-scope-tabs button[aria-pressed="true"] { color: #fff; border-bottom-color: var(--orange); }
 .inventory-scope-tabs button > span { background: #303b65; color: #dbe0f1; }
-.inventory-stats { gap: 0; padding: 18px 0; border: 1px solid #3b4469; border-radius: 10px; background: #1d2445; }
-.inventory-stat, .inventory-stat:last-child { border: 0; border-radius: 0; border-right: 1px solid #3b4469; padding: 4px 22px; background: transparent; }
+.inventory-stats { gap: 0; padding: 18px 0; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.inventory-stat, .inventory-stat:last-child { border: 0; border-radius: 0; border-right: 1px solid var(--line); padding: 4px 22px; background: transparent; }
 .inventory-stat:last-child { border-right: 0; }
-.inventory-stat > div > span, .inventory-stat strong small { color: #b9c2df; }
-.inventory-stat strong { color: #fff; }
-.inventory-stat-icon { background: #2e3c71; color: #d6defc; }
+.inventory-stat > div > span, .inventory-stat strong small { color: var(--muted); }
+.inventory-stat strong { color: var(--ink); }
+.inventory-stat-icon { background: var(--blue); color: #fff; }
 .inventory-stat-icon-warm { background: var(--orange); color: var(--ink); }
 .inventory-sample-banner { color: #b9c2df; border-color: #3b4469; }
 .inventory-toolbar-end > span { color: #c4cbe3; }
