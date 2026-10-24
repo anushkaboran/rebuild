@@ -159,7 +159,10 @@ class EvidenceItem(BaseModel):
     damage_level: DamageLevel = DamageLevel.unknown
     confidence: float = Field(default=0.0, ge=0, le=1)
     estimated_value: Optional[float] = None
-    currency: str = "USD"
+    # Nullable on purpose: the agent often reports no currency, and inventing
+    # "USD" would fabricate a fact. `estimated_value` stays a separate field and
+    # is never derived from `purchase_price` (which is a printed receipt value).
+    currency: Optional[str] = None
     bbox: Optional[BBox] = None
     agent_reasoning: Optional[str] = None
     status: ItemStatus = ItemStatus.ai_suggested
@@ -167,6 +170,14 @@ class EvidenceItem(BaseModel):
     agent_item_id: Optional[str] = None
     supporting_evidence_ids: list[str] = Field(default_factory=list)
     review_status: Optional[str] = None
+    # Agent-reported identity fields, copied verbatim (never inferred).
+    brand: Optional[str] = None
+    model: Optional[str] = None
+    purchase_date: Optional[str] = None
+    purchase_price: Optional[str] = None
+    location_in_image: Optional[str] = None
+    visible_observations: Optional[str] = None
+    user_confirmed_fields: list[str] = Field(default_factory=list)
     agent_record: Optional[dict[str, Any]] = Field(default=None, exclude=True)
     revision: int = 1
     created_at: datetime = Field(default_factory=utcnow)
@@ -257,6 +268,119 @@ class Investigation(BaseModel):
     requested_by: str = "anonymous"
     created_at: datetime = Field(default_factory=utcnow)
     finished_at: Optional[datetime] = None
+
+
+# --------------------------------------------------------------------------- #
+# Agent findings and questions
+# --------------------------------------------------------------------------- #
+class Finding(BaseModel):
+    """An agent observation: duplicate, receipt match, contradiction, gap."""
+
+    id: str
+    case_id: str
+    investigation_id: Optional[str] = None
+    finding_id: Optional[str] = None          # fnd_001
+    finding_type: Optional[str] = None        # possible_duplicate | …
+    item_ids: list[str] = Field(default_factory=list)      # agent itm_### ids
+    evidence_ids: list[str] = Field(default_factory=list)  # ev_### ids
+    explanation: Optional[str] = None
+    status: str = "needs_review"
+    resolution_reason: Optional[str] = None
+
+
+class Question(BaseModel):
+    id: str
+    case_id: str
+    investigation_id: Optional[str] = None
+    question_id: Optional[str] = None         # q_001
+    item_id: Optional[str] = None             # agent itm_### id (nullable)
+    question: str = ""
+    reason: Optional[str] = None
+    status: str = "open"
+    resolution_reason: Optional[str] = None
+
+
+# --------------------------------------------------------------------------- #
+# Review read model (GET /api/cases/{case_id}/review)
+# --------------------------------------------------------------------------- #
+class ReviewEvidence(BaseModel):
+    """Evidence metadata only — no storage paths, tokens or artifact URLs."""
+
+    evidence_id: Optional[str] = None         # ev_### when the agent reported it
+    upload_id: Optional[str] = None
+    filename: str
+    evidence_type: str                        # photo | receipt | document | unknown
+    content_type: Optional[str] = None
+    readable: Optional[bool] = None
+    description: Optional[str] = None
+    size_bytes: Optional[int] = None
+    url: Optional[str] = None                 # local API route, not a signed link
+
+
+class ReviewItem(BaseModel):
+    """One belonging as the review UI needs it.
+
+    `id` is the backend id used by PATCH /api/items/{id}; `agent_item_id` is the
+    original CREAO id. Agent values and human corrections are both present and
+    distinguishable via `status` / `user_confirmed_fields`.
+    """
+
+    id: str
+    agent_item_id: Optional[str] = None
+    investigation_id: Optional[str] = None
+    name: str
+    room: Optional[str] = None
+    category: str = "other"
+    brand: Optional[str] = None
+    model: Optional[str] = None
+    purchase_date: Optional[str] = None
+    purchase_price: Optional[str] = None      # printed string, never converted
+    currency: Optional[str] = None            # null when the agent had none
+    location_in_image: Optional[str] = None
+    visible_observations: Optional[str] = None
+    condition: Optional[str] = None
+    supporting_evidence_ids: list[str] = Field(default_factory=list)
+    user_confirmed_fields: list[str] = Field(default_factory=list)
+    review_status: Optional[str] = None
+    damage_level: DamageLevel = DamageLevel.unknown
+    confidence: float = 0.0
+    estimated_value: Optional[float] = None   # separate from purchase_price
+    status: ItemStatus = ItemStatus.ai_suggested
+    revision: int = 1
+    updated_by: Optional[str] = None
+    updated_at: datetime = Field(default_factory=utcnow)
+
+
+class ReviewFinding(Finding):
+    pass
+
+
+class ReviewQuestion(Question):
+    pass
+
+
+class ReviewDecision(BaseModel):
+    """Latest human decision recorded for an item, if any."""
+
+    item_id: str
+    agent_item_id: Optional[str] = None
+    editor: str
+    note: Optional[str] = None
+    changes: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=utcnow)
+
+
+class CaseReview(BaseModel):
+    case: Case
+    evidence: list[ReviewEvidence] = Field(default_factory=list)
+    items: list[ReviewItem] = Field(default_factory=list)
+    findings: list[ReviewFinding] = Field(default_factory=list)
+    questions: list[ReviewQuestion] = Field(default_factory=list)
+    decisions: list[ReviewDecision] = Field(default_factory=list)
+    investigations: list[Investigation] = Field(default_factory=list)
+    stats: ReviewStats
+    generated_at: datetime = Field(default_factory=utcnow)
+    source: str = "memory"                    # "memory" | "spacetimedb"
 
 
 # --------------------------------------------------------------------------- #
@@ -362,3 +486,4 @@ class ErrorResponse(BaseModel):
 
 
 CaseDetail.model_rebuild()
+CaseReview.model_rebuild()

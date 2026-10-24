@@ -1,6 +1,6 @@
 # Rebuild API contract
 
-**Status:** v0.5 — owned by Person 3 (backend). URL-based evidence + recovery of already-completed CREAO runs.
+**Status:** v0.6.1 — owned by Person 3 (backend). URL-based evidence + recovery of already-completed CREAO runs.
 **Base URL (local):** `http://localhost:8000`
 **Machine-readable schema:** `GET /openapi.json` · interactive docs at `/docs`
 
@@ -549,6 +549,124 @@ Behaviour:
 
 ---
 
+## 6d. Review inventory — `GET /api/cases/{case_id}/review`
+
+Read-only view of the **original CREAO fields** for the review UI. Before this
+endpoint those fields were only inside `agent_record`, which is excluded from API
+responses.
+
+`?refresh=true` (default) re-reads SpacetimeDB first when
+`STORE_BACKEND=spacetime`, so the response is never a stale cache. `source`
+tells you which path answered: `spacetimedb`, `memory`, or
+`memory (stale: SpacetimeDB unreachable)`.
+
+```http
+GET /api/cases/case_18b532045bc7/review
+```
+
+```jsonc
+{
+  "case": { "id": "case_18b532045bc7", "title": "42 Willow Creek Rd",
+            "address": "Asheville, NC", "disaster_type": "flood",
+            "status": "review", "item_count": 8, "upload_count": 4 },
+
+  "source": "spacetimedb",
+  "generated_at": "2026-10-24T06:55:27.230Z",
+
+  "evidence": [
+    { "evidence_id": "ev_001", "upload_id": "upl_e290d454b817",
+      "filename": "01_room_armchair.jpg", "evidence_type": "photo",
+      "content_type": "image/jpeg", "readable": true,
+      "description": "Wide interior view of a living room …",
+      "size_bytes": 37170, "url": "/api/uploads/upl_e290d454b817/file" }
+  ],
+
+  "items": [
+    {
+      "id": "itm_a16684bd49c2",              // backend id → PATCH /api/items/{id}
+      "agent_item_id": "itm_001",            // original CREAO id
+      "investigation_id": "inv_b58112068a26",
+      "name": "Brown fabric armchair",
+      "room": "Living room",
+      "category": "other",
+      "brand": null,                          // null = agent could not read it
+      "model": null,
+      "purchase_date": null,
+      "purchase_price": null,                 // printed receipt value, a STRING
+      "currency": null,                       // null = unknown, never invented
+      "location_in_image": "ev_001: right third of the frame …",
+      "visible_observations": "Deep brown upholstery … water line across the base",
+      "condition": null,
+      "supporting_evidence_ids": ["ev_001", "ev_002"],
+      "user_confirmed_fields": [],
+      "review_status": "needs_review",
+      "damage_level": "unknown",
+      "confidence": 0.0,
+      "estimated_value": null,                // separate from purchase_price
+      "status": "ai_suggested",
+      "revision": 1,                          // send as if_revision on PATCH
+      "updated_by": null,
+      "updated_at": "2026-10-24T05:56:54.132Z"
+    }
+  ],
+
+  "findings": [
+    { "id": "inv_…:fnd_001", "finding_id": "fnd_001",
+      "finding_type": "possible_duplicate", "item_ids": ["itm_001"],
+      "evidence_ids": ["ev_001", "ev_002"],
+      "explanation": "The armchair appears in two files …",
+      "status": "needs_review", "resolution_reason": null }
+  ],
+
+  "questions": [
+    { "id": "inv_…:q_001", "question_id": "q_001", "item_id": "itm_001",
+      "question": "Is the brown armchair yours …?",
+      "reason": "Ownership affects the claim.",
+      "status": "open", "resolution_reason": null }
+  ],
+
+  "decisions": [
+    { "item_id": "itm_a16684bd49c2", "agent_item_id": "itm_001",
+      "editor": "priya", "note": "verified on site",
+      "changes": { "estimated_value": 425.0, "condition": "base is cracked" },
+      "created_at": "2026-10-24T07:02:11.004Z" }
+  ],
+
+  "investigations": [ { "id": "inv_b58112068a26", "status": "complete",
+                        "agent_run_id": "56821244-…", "recovered": false } ],
+
+  "stats": { "total_items": 8, "ai_suggested": 8, "human_confirmed": 0,
+             "human_corrected": 0, "rejected": 0,
+             "total_estimated_value": 0.0, "currency": "USD",
+             "contributors": [] }
+}
+```
+
+### Guarantees
+
+| Rule | Detail |
+|---|---|
+| Agent values are verbatim | `brand`, `model`, `purchase_date`, `purchase_price`, `location_in_image`, `visible_observations` come straight from `rebuild-result.json`; missing stays `null` |
+| `currency` may be `null` | The agent often reports none. It is **never** defaulted to `USD`; statistics fall back to `USD` for display only |
+| `purchase_price` ≠ `estimated_value` | `purchase_price` is a printed string from a receipt. `estimated_value` is a reviewer-entered number. The backend never copies one into the other |
+| Both ids present | `id` is what `PATCH /api/items/{id}` expects; `agent_item_id` is the CREAO `itm_###` |
+| `revision` | Send it back as `if_revision`; a stale value returns **409** with the current row |
+| Human state is separate | `status`, `revision`, `updated_by` and `decisions[]` describe human work; agent output is untouched |
+| No secrets | No storage paths, API keys, signed evidence URLs or CREAO artifact URLs. `evidence[].url` is the local `/api/uploads/{id}/file` route |
+
+### Correcting an item
+
+```http
+PATCH /api/items/itm_a16684bd49c2
+{ "estimated_value": 425, "condition": "base is cracked",
+  "editor": "priya", "note": "verified on site", "if_revision": 1 }
+```
+
+`200` → new `revision: 2`; `409` → `detail.current` holds the winning row.
+Re-read the review endpoint and re-apply on top of it.
+
+---
+
 ## 7. Comments, events and export
 
 ### `GET /api/cases/{case_id}/comments` → `Comment[]`
@@ -692,6 +810,7 @@ which is normalised to `unknown`).
 
 | Version | Change |
 |---|---|
+| 0.6.1 | `GET /api/cases/{id}/review`: agent fields (brand, model, purchase_date, purchase_price, nullable currency, location_in_image, visible_observations, user_confirmed_fields), findings, questions and decisions, with both backend and agent ids. Nullable currency no longer defaulted to USD; `purchase_price` never folded into `estimated_value`. |
 | 0.5 | `POST /api/creao/recover` imports an already-completed CREAO run without starting a new one: shared import pipeline, validation-before-write, idempotent retries, human corrections preserved, case/upload restoration from supplied metadata + disk. |
 | 0.4 | URL-based evidence: `room_photos`/`receipt_files` are arrays of short-lived signed HTTPS URLs served by this backend; JSON-string `evidence_manifest`/`confirmed_items`; `previous_result` omitted on first runs; signed public evidence routes; pre-flight URL reachability check; evidence-ID validation against the IDs actually sent. |
 | 0.3 | Switched to Person 2's verified **app-scoped API Trigger** (`capi_` key, `appId` in URL, `{"inputs": …}`, poll by `id`, authenticated artifact download of `rebuild-result.json`). `Investigation` gains `evidence_transport` / `evidence_ids`; `EvidenceItem` gains `agent_item_id` / `supporting_evidence_ids` / `review_status`; new `503 CREAO_EVIDENCE_TRANSPORT_UNVERIFIED` gate. The `/v1` CLI path is removed. |

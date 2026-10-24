@@ -19,8 +19,10 @@ from ..models import (
     BBox,
     DamageLevel,
     EvidenceItem,
+    Finding,
     Investigation,
     ItemStatus,
+    Question,
     utcnow,
 )
 from ..store import new_id, store
@@ -96,12 +98,19 @@ def import_agent_result(
                 damage_level=_damage(agent_item.damage_level),
                 confidence=agent_item.confidence,
                 estimated_value=agent_item.estimated_value,
-                currency=agent_item.currency or "USD",
+                currency=agent_item.currency,
                 bbox=BBox(**agent_item.bbox) if agent_item.bbox else None,
                 agent_reasoning=agent_item.reasoning,
                 agent_item_id=agent_item.agent_item_id,
                 supporting_evidence_ids=agent_item.supporting_evidence_ids,
                 review_status=agent_item.review_status,
+                brand=agent_item.brand,
+                model=agent_item.model,
+                purchase_date=agent_item.purchase_date,
+                purchase_price=agent_item.purchase_price,
+                location_in_image=agent_item.location_in_image,
+                visible_observations=agent_item.visible_observations,
+                user_confirmed_fields=agent_item.user_confirmed_fields,
                 agent_record=agent_item.raw or None,
                 status=(
                     ItemStatus.human_confirmed
@@ -114,6 +123,29 @@ def import_agent_result(
             report.item_ids.append(item.id)
 
     report.item_ids = [i.id for i in report.skipped] + [i.id for i in report.created]
+
+    # Findings and questions are agent output too; ids are deterministic so a
+    # re-import updates rather than duplicates.
+    from . import creao as _creao
+
+    payload = result.payload or {}
+    with store.lock:
+        for raw in _creao.normalise_findings(payload):
+            fid = f"{investigation.id}:{raw['finding_id'] or new_id('fnd')}"
+            store.findings[fid] = Finding(
+                id=fid,
+                case_id=case_id,
+                investigation_id=investigation.id,
+                **raw,
+            )
+        for raw in _creao.normalise_questions(payload):
+            qid = f"{investigation.id}:{raw['question_id'] or new_id('q')}"
+            store.questions[qid] = Question(
+                id=qid,
+                case_id=case_id,
+                investigation_id=investigation.id,
+                **raw,
+            )
 
     case = store.get_case(case_id)
     if case is not None:

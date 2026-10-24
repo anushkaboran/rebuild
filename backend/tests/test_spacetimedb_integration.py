@@ -277,3 +277,58 @@ def test_pdf_export_reflects_the_latest_correction(live):
         after_restart = client.get(f"/api/cases/{case_id}/export.pdf")
         assert after_restart.status_code == 200
         assert after_restart.content.startswith(b"%PDF")
+
+
+# --------------------------------------------------------------------------- #
+# Review endpoint reads durable state
+# --------------------------------------------------------------------------- #
+def test_review_endpoint_serves_persisted_agent_fields_after_restart(live):
+    import json
+
+    from app.models import EvidenceItem, ItemStatus
+
+    with TestClient(app) as client:
+        case_id = client.post("/api/cases", json={"title": "Review restart"}).json()["id"]
+
+        # An agent-imported item exactly as the CREAO payload describes it:
+        # no currency reported, and a printed purchase price that is NOT a
+        # valuation.
+        item = EvidenceItem(
+            id=_unique("itm"),
+            case_id=case_id,
+            investigation_id=_unique("inv"),
+            agent_item_id="itm_001",
+            name="Brown fabric armchair",
+            brand=None,
+            model=None,
+            purchase_date=None,
+            purchase_price="89.99",
+            currency=None,
+            location_in_image="ev_001: right third of the frame",
+            visible_observations="Deep brown upholstery, water line across the base",
+            supporting_evidence_ids=["ev_001"],
+            user_confirmed_fields=[],
+            review_status="needs_review",
+            estimated_value=None,
+            status=ItemStatus.ai_suggested,
+        )
+        with store.lock:
+            store.items[item.id] = item
+        spacetime_db.sync()
+
+    # Restart: cache gone, database authoritative.
+    store.reset()
+    assert store.list_items(case_id) == []
+
+    with TestClient(app) as client:  # lifespan hydrates
+        review = client.get(f"/api/cases/{case_id}/review").json()
+
+    assert review["source"] == "spacetimedb"
+    served = next(i for i in review["items"] if i["agent_item_id"] == "itm_001")
+    assert served["id"] == item.id
+    assert served["brand"] is None
+    assert served["purchase_price"] == "89.99"
+    assert served["currency"] is None, "unknown currency must stay null after a restart"
+    assert served["estimated_value"] is None, "purchase_price must not become a valuation"
+    assert served["location_in_image"].startswith("ev_001")
+    assert served["revision"] == 1
