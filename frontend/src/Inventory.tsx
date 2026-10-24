@@ -1,3 +1,4 @@
+import UpdateInvestigation from './UpdateInvestigation'
 import BackendReview from './BackendReview'
 import DownloadPdf from './DownloadPdf'
 import ItemCorrection from './ItemCorrection'
@@ -136,8 +137,12 @@ export default function Inventory({ caseId, simulated = false, activeView = 'inv
       } = await response.json()
       if (!Array.isArray(data.items) || !Array.isArray(data.evidence)) throw new Error('Missing review records.')
       const backendId = (agentId: string, issueId: string) => {
-        const investigationId = issueId.split(':')[0]
-        return data.items.find(item => item.investigation_id === investigationId && item.agent_item_id === agentId)?.id ?? agentId
+        const scopeId = issueId.split(':')[0]
+        const matches = data.items.filter(item =>
+          item.agent_item_id === agentId &&
+          (scopeId === caseId || item.investigation_id === scopeId)
+        )
+        return matches.length === 1 ? matches[0].id : agentId
       }
       setBackendResult({
         items: data.items.map(item => ({ ...item, item_id: item.id, room: item.room ?? 'Unassigned room', supporting_evidence_ids: item.supporting_evidence_ids ?? [], user_confirmed_fields: item.user_confirmed_fields ?? [] })),
@@ -354,6 +359,10 @@ export default function Inventory({ caseId, simulated = false, activeView = 'inv
     <section className="inventory-workspace" aria-labelledby="inventory-title">
       <div className="inventory-heading"><div><p className="eyebrow">{activeView === 'review' ? 'REVIEW' : 'INVENTORY'}</p><h1 id="inventory-title">{activeView === 'review' ? 'Review your items.' : 'Your recovery record.'}</h1></div>{caseId ? <div className="backend-toolbar"><button type="button" className="button-secondary" disabled={loading} onClick={() => void loadReview()}>{loading ? 'Loading…' : backendResult ? 'Refresh case inventory' : 'Open case inventory →'}</button><DownloadPdf caseId={caseId} /></div> : <button type="button" className="button-primary inventory-create-button" onClick={() => setCreating(true)}><span aria-hidden="true">＋</span> Create item</button>}</div>
 
+      {caseId && backendResult && (
+        <UpdateInvestigation key={caseId} caseId={caseId} onComplete={loadReview} />
+      )}
+
       {!caseId && <div className="inventory-scope-tabs" aria-label="Inventory source"><button type="button" aria-pressed={!isSample} onClick={() => chooseScope('yours')}>Your items <span>{userItems.length}</span></button><button type="button" aria-pressed={isSample} onClick={() => chooseScope('sample')}>Sample inventory <span>8</span></button></div>}
 
       {displayedItems.length > 0 && <div className="inventory-stats" aria-label="Inventory summary"><div className="inventory-stat"><span className="inventory-stat-icon"><InventoryIcon name="layers" /></span><div><span>Total items</span><strong>{displayedItems.length}<small>item records</small></strong></div></div><div className="inventory-stat"><span className="inventory-stat-icon"><InventoryIcon name="file" /></span><div><span>{caseId ? 'Evidence files' : isSample ? 'Sample evidence' : 'Photos attached'}</span><strong>{records?.evidence.length ?? 0}<small>{caseId ? 'uploaded to this case' : isSample ? 'source descriptions' : 'selected by you'}</small></strong></div></div><div className="inventory-stat"><span className="inventory-stat-icon inventory-stat-icon-warm"><InventoryIcon name={isSample ? 'review' : 'check'} /></span><div><span>{isSample ? 'Open review tasks' : 'Confirmed fields'}</span><strong>{isSample ? openTaskCount : confirmedFieldCount}<small>{isSample ? 'across this sample case' : 'details you provided'}</small></strong></div></div></div>}
@@ -467,7 +476,7 @@ export default function Inventory({ caseId, simulated = false, activeView = 'inv
               <div className="inventory-detail-body inventory-review-panel">{caseId ? <BackendReview
       caseId={caseId}
       itemId={selected.item_id}
-      investigationId={selected.investigation_id}
+      investigationId={undefined}
       findings={records.findings}
       questions={records.questions}
       onSaved={loadReview}
