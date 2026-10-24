@@ -333,10 +333,18 @@ def _build_evidence(uploads, transport: str, case) -> list:
 
 
 def _review_answers(case_id: str) -> list[dict]:
-    """Saved question answers, in the agent's `review_answers` shape.
+    """Saved answers in the exact shape Investigator v1.3.1 accepts.
 
-    Only answered questions are included. An answer is context for the agent —
-    it is never emitted as a confirmed inventory field.
+    The agent contract is three keys only:
+
+        [{"question_id": "q_001", "answer": "...", "answered_by": "Lasya"}]
+
+    Nothing else is sent — the question text, `item_id` and `answered_at` stay in
+    SpacetimeDB (question row + decision history) where the review UI and the
+    audit trail still have them.
+
+    Only answered questions are included, and an answer is never emitted as a
+    confirmed inventory field.
     """
     answers = []
     for question in store.list_questions(case_id):
@@ -345,13 +353,8 @@ def _review_answers(case_id: str) -> list[dict]:
         answers.append(
             {
                 "question_id": question.question_id,
-                "question": question.question,
-                "item_id": question.item_id,
                 "answer": question.answer,
-                "answered_by": question.answered_by,
-                "answered_at": question.answered_at.isoformat()
-                if question.answered_at
-                else None,
+                "answered_by": question.answered_by or "anonymous",
             }
         )
     return sorted(answers, key=lambda a: a["question_id"] or "")

@@ -258,8 +258,18 @@ If a reviewer had already decided a row, the follow-up's proposal is in
 - retries are safe: running the same follow-up twice creates no duplicates;
 - stale `if_revision` still returns `409` with `detail.current`.
 
-## Unverified note
+## `review_answers` (confirmed for Investigator v1.3.1)
 
-`review_answers` is sent to the agent, but it is **not yet in Person 2's published
-contract** (agent branch `78eebb9`). The UI does not need to change either way;
-treat answer round-tripping as unconfirmed until a live follow-up run is verified.
+The backend sends saved answers automatically as a JSON **string** with exactly
+three keys per answer:
+
+```json
+[{"question_id": "q_001", "answer": "Yes, mine.", "answered_by": "priya"}]
+```
+
+Only answered questions are included. The UI does not build this — but note that
+the question text, item link and `answered_at` are still returned by
+`GET /api/cases/{id}/review`, so your review screen loses nothing.
+
+Answers never confirm inventory fields, and they never overwrite a reviewer's
+existing decisions.

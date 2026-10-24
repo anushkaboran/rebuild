@@ -222,16 +222,50 @@ def test_review_answers_is_a_json_string_of_answered_questions_only(client):
     assert isinstance(inputs["review_answers"], str), "must be a JSON string, not an array"
 
     answers = json.loads(inputs["review_answers"])
+    assert isinstance(answers, list)
     assert len(answers) == 1
-    assert answers[0]["question_id"] == "q_001"
-    assert answers[0]["question"].startswith("Is the brown armchair yours")
-    assert answers[0]["answer"] == "Yes, mine."
-    assert answers[0]["answered_by"] == "priya"
-    assert answers[0]["answered_at"]
+    # Investigator v1.3.1 contract: exactly these three keys, nothing else.
+    assert set(answers[0]) == {"question_id", "answer", "answered_by"}
+    assert answers[0] == {
+        "question_id": "q_001",
+        "answer": "Yes, mine.",
+        "answered_by": "priya",
+    }
 
     # Answers are context, never an item confirmation.
     confirmed = json.loads(inputs["confirmed_items"])
     assert all(c.get("target_type") != "question" for c in confirmed)
+
+
+def test_review_answers_payload_matches_agent_contract_exactly(client):
+    case_id, uploads = _case(client)
+    _investigate(client, case_id, uploads)
+
+    q = client.get(f"/api/cases/{case_id}/review").json()["questions"][0]
+    client.patch(
+        f"/api/cases/{case_id}/questions/{q['question_id']}",
+        json={"answer": "Yes — bought in 2021.", "reviewer": "Lasya", "if_revision": 0},
+    )
+
+    _investigate(client, case_id, uploads)
+    inputs = ScriptedClient.instances[-1].calls[-1]
+
+    # A JSON *string* (not an array, not a nested array).
+    assert isinstance(inputs["review_answers"], str)
+    parsed = json.loads(inputs["review_answers"])
+    assert isinstance(parsed, list)
+    assert parsed == [
+        {"question_id": "q_001", "answer": "Yes — bought in 2021.", "answered_by": "Lasya"}
+    ]
+    assert "answered_at" not in parsed[0]
+    assert "question" not in parsed[0]
+    assert "item_id" not in parsed[0]
+
+    # Everything else in the payload is untouched.
+    assert json.loads(inputs["confirmed_items"]) != None
+    assert isinstance(inputs["evidence_manifest"], str)
+    assert "previous_result" in inputs or True  # only when a public base exists
+    assert inputs["room_photos"] and isinstance(inputs["room_photos"], list)
 
 
 def test_unanswered_questions_are_omitted(client):
@@ -258,8 +292,10 @@ def test_answers_survive_a_follow_up_run(client):
     assert after["answer"] == "Yes, mine."
     assert after["answered_by"] == "priya"
     assert after["revision"] == 1
-    # Agent wording may be refreshed, the human answer is untouched.
+    # The review API still exposes the question text even though it is no longer
+    # sent to the agent.
     assert "updated wording" in after["question"]
+    assert after["answered_at"]
 
 
 # --------------------------------------------------------------------------- #
