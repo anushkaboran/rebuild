@@ -37,6 +37,7 @@ from ..models import (
     Case,
     CaseStatus,
     Comment,
+    DecisionEvent,
     Finding,
     Question,
     DamageLevel,
@@ -235,7 +236,11 @@ def _finding_payload(finding: Finding) -> dict[str, Any]:
         "evidence_ids": finding.evidence_ids,
         "explanation": finding.explanation,
         "status": finding.status,
+        "resolution": finding.resolution,
         "resolution_reason": finding.resolution_reason,
+        "resolved_by": finding.resolved_by,
+        "resolved_at": _iso(finding.resolved_at),
+        "revision": finding.revision,
     }
 
 
@@ -248,8 +253,28 @@ def _question_payload(question: Question) -> dict[str, Any]:
         "item_id": question.item_id,
         "question": question.question,
         "reason": question.reason,
+        "evidence_ids": question.evidence_ids,
         "status": question.status,
         "resolution_reason": question.resolution_reason,
+        "answer": question.answer,
+        "answered_by": question.answered_by,
+        "answered_at": _iso(question.answered_at),
+        "revision": question.revision,
+    }
+
+
+def _decision_payload(event: DecisionEvent) -> dict[str, Any]:
+    return {
+        "id": event.id,
+        "case_id": event.case_id,
+        "target_type": event.target_type,
+        "target_id": event.target_id,
+        "agent_ref": event.agent_ref,
+        "revision": event.revision,
+        "value": event.value,
+        "reviewer": event.reviewer,
+        "note": event.note,
+        "created_at": _iso(event.created_at),
     }
 
 
@@ -280,6 +305,7 @@ _PUSHERS = {
     "comment": ("upsert_comment", _comment_payload),
     "finding": ("upsert_finding", _finding_payload),
     "question": ("upsert_question", _question_payload),
+    "decision_event": ("upsert_decision_event", _decision_payload),
 }
 
 
@@ -299,6 +325,7 @@ def sync() -> dict[str, int]:
         ("comment", store.comments.values()),
         ("finding", store.findings.values()),
         ("question", store.questions.values()),
+        ("decision_event", store.decision_events.values()),
     ]
 
     try:
@@ -476,7 +503,11 @@ def hydrate() -> dict[str, int]:
             evidence_ids=_json(row.get("evidence_ids_json"), []),
             explanation=row.get("explanation") or None,
             status=row.get("status") or "needs_review",
+            resolution=row.get("resolution") or None,
             resolution_reason=row.get("resolution_reason") or None,
+            resolved_by=row.get("resolved_by") or None,
+            resolved_at=_dt(row.get("resolved_at")) if row.get("resolved_at") else None,
+            revision=int(row.get("revision") or 0),
         )
     counts["findings"] = len(findings)
 
@@ -490,10 +521,31 @@ def hydrate() -> dict[str, int]:
             item_id=row.get("item_id") or None,
             question=row.get("question") or "",
             reason=row.get("reason") or None,
+            evidence_ids=_json(row.get("evidence_ids_json"), []),
             status=row.get("status") or "open",
             resolution_reason=row.get("resolution_reason") or None,
+            answer=row.get("answer") or None,
+            answered_by=row.get("answered_by") or None,
+            answered_at=_dt(row.get("answered_at")) if row.get("answered_at") else None,
+            revision=int(row.get("revision") or 0),
         )
     counts["questions"] = len(questions)
+
+    decisions: dict[str, DecisionEvent] = {}
+    for row in _rows("decision_event"):
+        decisions[row["id"]] = DecisionEvent(
+            id=row["id"],
+            case_id=row["case_id"],
+            target_type=row.get("target_type") or "question",
+            target_id=row.get("target_id") or "",
+            agent_ref=row.get("agent_ref") or None,
+            revision=int(row.get("revision") or 0),
+            value=row.get("value") or None,
+            reviewer=row.get("reviewer") or "anonymous",
+            note=row.get("note") or None,
+            created_at=_dt(row.get("created_at")),
+        )
+    counts["decision_events"] = len(decisions)
 
     comments: dict[str, Comment] = {}
     for row in _rows("comment"):
@@ -516,6 +568,7 @@ def hydrate() -> dict[str, int]:
         store.comments.update(comments)
         store.findings.update(findings)
         store.questions.update(questions)
+        store.decision_events.update(decisions)
 
     for obj in (
         list(cases.values())
@@ -526,6 +579,7 @@ def hydrate() -> dict[str, int]:
         + list(comments.values())
         + list(findings.values())
         + list(questions.values())
+        + list(decisions.values())
     ):
         payload = _PUSHERS[_table_for(obj)][1](obj)
         _synced[obj.id] = _hash(payload)
@@ -554,6 +608,8 @@ def _table_for(obj: Any) -> str:
         return "finding"
     if isinstance(obj, Question):
         return "question"
+    if isinstance(obj, DecisionEvent):
+        return "decision_event"
     raise TypeError(type(obj))
 
 

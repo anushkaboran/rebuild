@@ -17,6 +17,7 @@ import uuid
 from .models import (
     Case,
     Comment,
+    DecisionEvent,
     EvidenceItem,
     Event,
     Finding,
@@ -42,6 +43,7 @@ class Store:
         self.revisions: dict[str, Revision] = {}   # revision_id -> Revision
         self.findings: dict[str, Finding] = {}
         self.questions: dict[str, Question] = {}
+        self.decision_events: dict[str, DecisionEvent] = {}
         self.events: list[Event] = []
 
     # -- lifecycle ---------------------------------------------------------- #
@@ -57,6 +59,7 @@ class Store:
                 self.revisions,
                 self.findings,
                 self.questions,
+                self.decision_events,
             ):
                 collection.clear()
             self.events.clear()
@@ -109,6 +112,13 @@ class Store:
     def list_questions(self, case_id: str) -> list[Question]:
         with self._lock:
             return [q for q in self.questions.values() if q.case_id == case_id]
+
+    def list_decisions(self, case_id: str) -> list[DecisionEvent]:
+        with self._lock:
+            return sorted(
+                (d for d in self.decision_events.values() if d.case_id == case_id),
+                key=lambda d: d.created_at,
+            )
 
     def list_revisions(self, item_id: str) -> list[Revision]:
         with self._lock:

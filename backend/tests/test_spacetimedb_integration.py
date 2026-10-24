@@ -332,3 +332,122 @@ def test_review_endpoint_serves_persisted_agent_fields_after_restart(live):
     assert served["estimated_value"] is None, "purchase_price must not become a valuation"
     assert served["location_in_image"].startswith("ev_001")
     assert served["revision"] == 1
+
+
+# --------------------------------------------------------------------------- #
+# Review decisions (questions / findings)
+# --------------------------------------------------------------------------- #
+def test_question_decision_survives_restart(live):
+    from app.models import Case, Question
+
+    case_id = _unique("case")
+    with TestClient(app) as client:
+        client.post("/api/cases", json={"title": "decisions restart"})
+        # seed directly (no CREAO call) and persist
+        store.cases[case_id] = Case(id=case_id, title="decisions restart")
+        qid = _unique("qid")
+        store.questions[f"inv_d:{qid}"] = Question(
+            id=f"inv_d:{qid}",
+            case_id=case_id,
+            investigation_id="inv_d",
+            question_id=qid,
+            question="Is the armchair yours?",
+            evidence_ids=["ev_001"],
+            status="open",
+            revision=0,
+        )
+        spacetime_db.sync()
+
+        answered = client.patch(
+            f"/api/cases/{case_id}/questions/{qid}",
+            json={"answer": "Yes, mine.", "reviewer": "priya", "if_revision": 0},
+        )
+        assert answered.status_code == 200, answered.text
+
+    store.reset()
+    assert store.questions == {}
+
+    with TestClient(app) as client:  # hydrate
+        review = client.get(f"/api/cases/{case_id}/review").json()
+
+    assert review["source"] == "spacetimedb"
+    question = next(q for q in review["questions"] if q["question_id"] == qid)
+    assert question["answer"] == "Yes, mine."
+    assert question["answered_by"] == "priya"
+    assert question["revision"] == 1
+    # Audit trail survived too.
+    assert any(d["agent_ref"] == qid for d in review["question_decisions"])
+
+
+def test_agent_reimport_cannot_erase_a_human_decision(live):
+    import json
+
+    from app.models import Case, Finding
+
+    case_id = _unique("case")
+    spacetime_db.call(
+        "upsert_case",
+        [json.dumps(spacetime_db._case_payload(Case(id=case_id, title="preserve decision")))],
+    )
+    finding_id = _unique("finding")
+    finding = Finding(
+        id=f"inv_p:{finding_id}",
+        case_id=case_id,
+        investigation_id="inv_p",
+        finding_id="fnd_001",
+        finding_type="possible_duplicate",
+        evidence_ids=["ev_001"],
+        explanation="Two files show the same chair.",
+        status="needs_review",
+        revision=0,
+    )
+    spacetime_db.call("upsert_finding", [json.dumps(spacetime_db._finding_payload(finding))])
+    spacetime_db.call(
+        "apply_finding_decision",
+        [finding.id, 0, "confirmed", "agreed", "priya", _unique("dec")],
+    )
+
+    # An agent re-import arrives with revision 0 (no human decision).
+    spacetime_db.call("upsert_finding", [json.dumps(spacetime_db._finding_payload(finding))])
+
+    rows = spacetime_db.sql(f"SELECT * FROM finding WHERE id = '{finding.id}'")
+    assert rows[0]["resolution"] == "confirmed"
+    assert rows[0]["resolved_by"] == "priya"
+    assert rows[0]["revision"] == 1
+
+
+def test_same_revision_submitted_twice_is_rejected_at_the_database(live):
+    import json
+
+    from app.models import Case, Question
+
+    case_id = _unique("case")
+    spacetime_db.call(
+        "upsert_case",
+        [json.dumps(spacetime_db._case_payload(Case(id=case_id, title="double submit")))],
+    )
+    qid = _unique("q")
+    question = Question(
+        id=f"inv_dbl:{qid}",
+        case_id=case_id,
+        investigation_id="inv_dbl",
+        question_id="q_001",
+        question="Ownership?",
+        revision=0,
+    )
+    spacetime_db.call("upsert_question", [json.dumps(spacetime_db._question_payload(question))])
+
+    spacetime_db.call(
+        "apply_question_decision",
+        [question.id, 0, "Yes", "priya", _unique("dec")],
+    )
+    # Replaying the same expected revision must not double-apply.
+    with pytest.raises(spacetime_db.SpacetimeError):
+        spacetime_db.call(
+            "apply_question_decision",
+            [question.id, 0, "Yes again", "marcus", _unique("dec")],
+        )
+
+    rows = spacetime_db.sql(f"SELECT * FROM question WHERE id = '{question.id}'")
+    assert rows[0]["revision"] == 1
+    assert rows[0]["answer"] == "Yes"

@@ -273,8 +273,16 @@ class Investigation(BaseModel):
 # --------------------------------------------------------------------------- #
 # Agent findings and questions
 # --------------------------------------------------------------------------- #
+FINDING_RESOLUTIONS = ("confirmed", "rejected", "needs_more_evidence", "unresolved")
+
+
 class Finding(BaseModel):
-    """An agent observation: duplicate, receipt match, contradiction, gap."""
+    """An agent observation plus the human decision about it.
+
+    Agent fields (`finding_id`, `finding_type`, `explanation`, `item_ids`,
+    `evidence_ids`) are never rewritten by a decision. Human fields live
+    alongside them and carry their own `revision`.
+    """
 
     id: str
     case_id: str
@@ -284,11 +292,19 @@ class Finding(BaseModel):
     item_ids: list[str] = Field(default_factory=list)      # agent itm_### ids
     evidence_ids: list[str] = Field(default_factory=list)  # ev_### ids
     explanation: Optional[str] = None
+    # Agent-reported status (kept for backwards compatibility).
     status: str = "needs_review"
+    # --- human decision ---
+    resolution: Optional[str] = None           # confirmed | rejected | …
     resolution_reason: Optional[str] = None
+    resolved_by: Optional[str] = None
+    resolved_at: Optional[datetime] = None
+    revision: int = 0                          # 0 = no human decision yet
 
 
 class Question(BaseModel):
+    """An agent question plus the human answer."""
+
     id: str
     case_id: str
     investigation_id: Optional[str] = None
@@ -296,8 +312,46 @@ class Question(BaseModel):
     item_id: Optional[str] = None             # agent itm_### id (nullable)
     question: str = ""
     reason: Optional[str] = None
-    status: str = "open"
-    resolution_reason: Optional[str] = None
+    evidence_ids: list[str] = Field(default_factory=list)
+    status: str = "open"                      # open | answered
+    resolution_reason: Optional[str] = None   # kept for backwards compatibility
+    # --- human answer ---
+    answer: Optional[str] = None
+    answered_by: Optional[str] = None
+    answered_at: Optional[datetime] = None
+    revision: int = 0                          # 0 = no human answer yet
+
+
+class DecisionEvent(BaseModel):
+    """Append-only audit trail for question answers and finding resolutions."""
+
+    id: str
+    case_id: str
+    target_type: Literal["question", "finding"]
+    target_id: str                            # backend id of the question/finding
+    agent_ref: Optional[str] = None           # q_001 / fnd_001
+    revision: int
+    value: Optional[str] = None               # answer text or resolution
+    reviewer: str = "anonymous"
+    note: Optional[str] = None
+    created_at: datetime = Field(default_factory=utcnow)
+
+
+# --------------------------------------------------------------------------- #
+# Decision requests
+# --------------------------------------------------------------------------- #
+class QuestionAnswerRequest(BaseModel):
+    # null or "" clears an existing answer and returns the question to `open`.
+    answer: Optional[str] = Field(default=None, max_length=4000)
+    reviewer: str = Field(default="anonymous", max_length=120)
+    if_revision: int = Field(ge=0)
+
+
+class FindingResolutionRequest(BaseModel):
+    resolution: Literal["confirmed", "rejected", "needs_more_evidence", "unresolved"]
+    reason: Optional[str] = Field(default=None, max_length=2000)
+    reviewer: str = Field(default="anonymous", max_length=120)
+    if_revision: int = Field(ge=0)
 
 
 # --------------------------------------------------------------------------- #
@@ -376,7 +430,12 @@ class CaseReview(BaseModel):
     items: list[ReviewItem] = Field(default_factory=list)
     findings: list[ReviewFinding] = Field(default_factory=list)
     questions: list[ReviewQuestion] = Field(default_factory=list)
+    # Latest human edit per inventory item (PATCH /api/items/{id}).
     decisions: list[ReviewDecision] = Field(default_factory=list)
+    # Append-only audit trail for question answers and finding resolutions.
+    # Link back with target_id (backend id) or agent_ref (q_001 / fnd_001).
+    question_decisions: list[DecisionEvent] = Field(default_factory=list)
+    finding_decisions: list[DecisionEvent] = Field(default_factory=list)
     investigations: list[Investigation] = Field(default_factory=list)
     stats: ReviewStats
     generated_at: datetime = Field(default_factory=utcnow)
