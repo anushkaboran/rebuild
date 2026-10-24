@@ -10,3 +10,23 @@ __pycache__/
 *.pyc
 target/
 uploads/
+
+# --- Python / backend ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+backend/uploads/
+*.db
+*.sqlite3
+
+# --- SpacetimeDB module ---
+spacetimedb/node_modules/
+spacetimedb/client/
+spacetimedb/.spacetime/

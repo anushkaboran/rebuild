@@ -1,75 +1,34 @@
-# React + TypeScript + Vite
+# rebuild frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A React, TypeScript, and Vite recovery workspace with photo inventory cards.
 
-Currently, two official plugins are available:
+## Run locally
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+From the repository root, using a current Node.js LTS release:
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```sh
+git switch frontend-redesign
+cd frontend
+npm ci
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
+Open the local URL printed by Vite (normally http://localhost:5173).
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Checks
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```sh
+npm run build
+npm run lint
 ```
+
+## Current workflow
+
+- Create a room draft in Overview and select JPG, PNG, or PDF evidence.
+- Create an inventory item by naming it and explicitly choosing its photo.
+- Expand a photo card, then choose View more for its details, evidence, and review window.
+- Explore the separate sample inventory to try field confirmation, questions, findings, and undo.
+
+Files and edits remain in memory for the current page session and clear on refresh. Automatic image analysis, server uploads, and persistent saving are not connected in this frontend branch. Sample source descriptions are included; original case photos are not. Four bundled Unsplash photos illustrate selected demo cards and their item dialogs. They are labeled as sample photos and do not alter the case evidence or findings. Photo credits are in `public/sample-images/CREDITS.md`.
+
+Disclosure, Dialog, and Transition Panel are adapted from [Motion Primitives](https://motion-primitives.com) with reduced-motion support. Attribution and the upstream MIT license are in `src/components/core/MOTION-PRIMITIVES-LICENSE`.
