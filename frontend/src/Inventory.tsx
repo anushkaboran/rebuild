@@ -64,7 +64,8 @@ function InventoryIcon({ name, className = '' }: { name: IconName; className?: s
   )
 }
 
-const editableFields = ['name', 'brand', 'model', 'purchase_date', 'purchase_price', 'currency'] as const
+const identityFields = ['name', 'brand', 'model'] as const
+const purchaseFields = ['purchase_date', 'purchase_price', 'currency'] as const
 
 function PhotoPreview({ file, className = '' }: { file: File; className?: string }) {
   const imageRef = useRef<HTMLImageElement>(null)
@@ -358,7 +359,30 @@ export default function Inventory({ activeView, demoRequested, demoRequestId = 0
             </div>
             <div className="inventory-tabs" aria-label="Item information">{panelNames.map(value => <button type="button" key={value} aria-pressed={panel === value} onClick={() => setPanel(value)}>{value === 'details' ? 'Item details' : value === 'evidence' ? 'Evidence' : 'Review'}{value === 'review' && itemTaskCount(selected.item_id) > 0 && <span>{itemTaskCount(selected.item_id)}</span>}</button>)}</div>
             <TransitionPanel keepMounted activeIndex={panelNames.indexOf(panel)} className="inventory-modal-panels" transition={{ duration: 0.22, ease: 'easeInOut' }}>
-              <div className="inventory-detail-body"><div className="inventory-section-heading"><h3>{isSample ? 'What the sample describes' : 'Your notes'}</h3><span>{isSample ? 'From sample evidence' : 'Added by you'}</span></div><div className="inventory-observation"><p>{selected.visible_observations}</p>{isSample && <details><summary>Where it appears in the sample image</summary><p>{selected.location_in_image}</p></details>}</div><div className="inventory-section-heading inventory-fields-heading"><div><h3>Item details</h3></div></div><div className="inventory-fields">{editableFields.map(field => <FieldEditor key={selected.item_id + field} label={field} value={selected[field]} confirmed={selected.user_confirmed_fields.includes(field)} onConfirm={value => confirmField(field, value)} />)}</div></div>
+              <div className="inventory-detail-body">
+                <section className="inventory-observation-section" aria-label={isSample ? 'Sample observations' : 'Your notes'}>
+                  <div className="inventory-section-heading">
+                    <h3>{isSample ? 'Sample observations' : 'Your notes'}</h3>
+                    <span>{isSample ? 'From sample evidence' : 'Added by you'}</span>
+                  </div>
+                  <div className="inventory-observation">
+                    <p>{selected.visible_observations}</p>
+                    {isSample && <details><summary>Where it appears in the sample image</summary><p>{selected.location_in_image}</p></details>}
+                  </div>
+                </section>
+                <section className="inventory-field-section" aria-label="Item identity">
+                  <div className="inventory-field-section-heading identity-heading"><InventoryIcon name="layers" /><h3>Item identity</h3></div>
+                  <div className="inventory-fields inventory-fields-identity">
+                    {identityFields.map(field => <FieldEditor key={selected.item_id + field} label={field} value={selected[field]} confirmed={selected.user_confirmed_fields.includes(field)} onConfirm={value => confirmField(field, value)} />)}
+                  </div>
+                </section>
+                <section className="inventory-field-section" aria-label="Purchase details">
+                  <div className="inventory-field-section-heading purchase-heading"><InventoryIcon name="file" /><h3>Purchase details</h3></div>
+                  <div className="inventory-fields inventory-fields-purchase">
+                    {purchaseFields.map(field => <FieldEditor key={selected.item_id + field} label={field} value={selected[field]} confirmed={selected.user_confirmed_fields.includes(field)} onConfirm={value => confirmField(field, value)} />)}
+                  </div>
+                </section>
+              </div>
               <div className="inventory-detail-body inventory-evidence-panel"><div className="inventory-section-heading"><div><h3>Supporting evidence</h3><p>{isSample ? 'Descriptions from the sample case. Original sample files aren’t included.' : 'Photos you selected for this item. No automated analysis has been performed.'}</p></div></div>{selected.supporting_evidence_ids.length === 0 && <p className="inventory-muted">No photo is attached yet. Add one using the photo controls above.</p>}{selected.supporting_evidence_ids.map(id => { const evidence = records.evidence.find(entry => entry.evidence_id === id); return <article className="inventory-evidence-card" key={id}><div className="inventory-evidence-file"><span><InventoryIcon name="file" /></span><div><strong>{evidence?.filename ?? 'File unavailable'}</strong><small>{isSample ? 'Sample source description' : 'Selected photo'}</small></div></div>{!isSample && photoFor(selected) && <PhotoPreview file={photoFor(selected)!} className="inventory-evidence-photo" />}<p>{evidence?.description ?? 'No description is available for this source.'}</p></article> })}</div>
               <div className="inventory-detail-body inventory-review-panel">{isSample ? <ReviewFindings itemId={selected.item_id} findings={records.findings} questions={records.questions} resolutions={resolutions} onResolve={(id, reason) => setResolutions(current => ({ ...current, [id]: reason }))} onUndo={undoResolution} /> : <div className="inventory-manual-review"><InventoryIcon name="check" /><h3>Let’s start with what you know.</h3><p>This item was added by you. Automatic review isn’t connected yet, so there are no generated questions or findings.</p><button type="button" className="button-primary" onClick={() => setPanel('details')}>Confirm item details<InventoryIcon name="arrow" /></button><small>{selected.user_confirmed_fields.length} fields confirmed · Saved in this tab</small></div>}</div>
             </TransitionPanel>

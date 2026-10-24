@@ -87,3 +87,11 @@
 .review-decision { background: #fff; border: 1px solid var(--blue); border-left-width: 4px; }
 .review-empty-icon { background: var(--blue); color: #fff; }
 .review-heading h4, .finding-title { font-weight: 750; }
+
+.inventory-review-panel .review-heading { padding: 18px 20px; border-radius: 10px; background: var(--navy); color: #fff; }
+.inventory-review-panel .review-heading p { color: #d3dcf5; }
+.inventory-review-panel .review-progress { background: var(--orange); color: var(--ink); font-weight: 700; }
+.inventory-review-panel .review-findings .question { border-top: 4px solid var(--orange); }
+.inventory-review-panel .review-findings .finding { border-left: 4px solid var(--blue); }
+.inventory-review-panel .review-scope { background: var(--navy); color: #fff; }
+.inventory-review-panel .inventory-manual-review { border: 1px solid var(--line); border-top: 4px solid var(--blue); border-radius: 10px; background: #fff; }
