@@ -1,0 +1,403 @@
+{
+  "case_summary": "Staged demo investigation of a living room reported as flooded, documenting damaged belongings for recovery. Four files were reviewed: two room photos and two staged-demo receipts. Eight distinguishable belongings or fixtures are visible, but no brand, model, purchase date, price, ownership or loss date is verifiable from the evidence. The brown armchair appears in both photos and is recorded once as itm_001; neither receipt can be matched to a visible object.",
+  "evidence": [
+    {
+      "evidence_id": "ev_001",
+      "filename": "01_room_armchair_7805d2e3.jpg",
+      "evidence_type": "photo",
+      "readable": true,
+      "description": "Wide, split-level view of a living room with a horizontal waterline across the lower third. Above the line: pale patterned wallpaper, two framed prints on the left wall, a dark two-shade pendant fixture, a cluster of four hanging globe bulbs over the windows, red tubular-frame seating and a low table near a bright multi-pane window, and a large brown armchair at the right. A wicker chair back is clipped at the far left edge. The below-waterline area is an even, mirror-like blue rendering containing strongly recoloured shapes (keyboard, guitar, cushion, typewriter, buckets); it reads as a manipulated composite rather than a documentary underwater photograph."
+    },
+    {
+      "evidence_id": "ev_002",
+      "filename": "02_armchair_closeup_8e470346.jpg",
+      "evidence_type": "photo",
+      "readable": true,
+      "description": "Closer view of the same brown armchair at the waterline, in front of the two right-hand windows. Shows rolled arms, a broad column of button tufting, mottled reddish-brown upholstery and a jagged, stained waterline across the seat and skirt. Brownish debris lies on the water surface at both lower corners, and a small vase of dried stems is partly visible at the lower left."
+    },
+    {
+      "evidence_id": "ev_003",
+      "filename": "04_receipt_lamp__1__d5f58c0c.png",
+      "evidence_type": "receipt",
+      "readable": true,
+      "description": "Single-page synthetic receipt from 'NORTHWIND HOME GOODS (fictional store, demo only)' headed '** STAGED DEMO - NOT A REAL RECEIPT **'. Prints 'Date: 03/04/2024' and 'Order #: DEMO-20817', one line for a floor lamp, brass finish with a white linen drum shade, 62 in, 'Item # NW-LMP-4410' at 89.99, then Subtotal 89.99, Tax 8.10, TOTAL 98.09, and 'Paid: card ending 0000 (demo)'. No lamp answering this description is visible in either photo."
+    },
+    {
+      "evidence_id": "ev_004",
+      "filename": "05_receipt_groceries__1__b1bd5996.png",
+      "evidence_type": "receipt",
+      "readable": true,
+      "description": "Single-page synthetic grocery receipt from 'GREENLEAF MARKET (fictional store, demo only)' headed '** STAGED DEMO - NOT A REAL RECEIPT **'. Prints 'Date: Jan 12 2025' and four lines: Bananas 2 lb 1.38, Whole milk 1 gal 4.29, Sourdough bread 5.49, Eggs dozen 3.99, TOTAL 15.15. No order number, item number or SKU is printed. Contains no furniture or household goods."
+    }
+  ],
+  "items": [
+    {
+      "item_id": "itm_001",
+      "name": "Brown tufted armchair",
+      "room": "Living room",
+      "location_in_image": "ev_001: right third of the frame, in front of the right-hand window pair, seat and skirt cut by the waterline. ev_002: fills the right two-thirds of the frame, backrest against the same windows.",
+      "visible_observations": "Wide rolled arms, deep button tufting down the back, mottled reddish-brown upholstery that reads as leather or leather-look fabric. A jagged horizontal tide line of darker, stained material crosses the seat cushion and front skirt in ev_002. Seat cushion and front legs are at or below the water surface; the base is not visible.",
+      "supporting_evidence_ids": [
+        "ev_001",
+        "ev_002"
+      ],
+      "brand": null,
+      "model": null,
+      "purchase_date": null,
+      "purchase_price": null,
+      "currency": null,
+      "proposed_receipt_evidence_id": null,
+      "review_status": "needs_review",
+      "user_confirmed_fields": []
+    },
+    {
+      "item_id": "itm_002",
+      "name": "Dark two-shade pendant light fixture",
+      "room": "Living room",
+      "location_in_image": "ev_001: upper centre-left, suspended from the ceiling in front of the tall window; two conical shades, one lit and one unlit, overlapping.",
+      "visible_observations": "Two conical or bell-shaped shades in a very dark, matte-looking finish on thin cords, the upper one lit and the lower one dark. Fixing points and canopy are above the top of the frame and not visible.",
+      "supporting_evidence_ids": [
+        "ev_001"
+      ],
+      "brand": null,
+      "model": null,
+      "purchase_date": null,
+      "purchase_price": null,
+      "currency": null,
+      "proposed_receipt_evidence_id": null,
+      "review_status": "needs_review",
+      "user_confirmed_fields": []
+    },
+    {
+      "item_id": "itm_003",
+      "name": "Cluster of four hanging globe bulbs",
+      "room": "Living room",
+      "location_in_image": "ev_001: upper right, hanging from the ceiling between the two right-hand windows, above and slightly left of the armchair.",
+      "visible_observations": "Four small clear or opal spherical bulbs on separate drop cords at staggered heights, all lit. No shades or canopy visible.",
+      "supporting_evidence_ids": [
+        "ev_001"
+      ],
+      "brand": null,
+      "model": null,
+      "purchase_date": null,
+      "purchase_price": null,
+      "currency": null,
+      "proposed_receipt_evidence_id": null,
+      "review_status": "needs_review",
+      "user_confirmed_fields": []
+    },
+    {
+      "item_id": "itm_004",
+      "name": "Tall framed print (left wall)",
+      "room": "Living room",
+      "location_in_image": "ev_001: on the left-hand patterned wall, the larger of the two frames, about one-quarter of the frame width from the left edge and midway up the wall.",
+      "visible_observations": "Plain light-coloured frame with no visible mat, portrait orientation, containing a dark image with a pale horizontal band. Glass reflects the window; the subject of the print cannot be identified.",
+      "supporting_evidence_ids": [
+        "ev_001"
+      ],
+      "brand": null,
+      "model": null,
+      "purchase_date": null,
+      "purchase_price": null,
+      "currency": null,
+      "proposed_receipt_evidence_id": null,
+      "review_status": "needs_review",
+      "user_confirmed_fields": []
+    },
+    {
+      "item_id": "itm_005",
+      "name": "Small framed print (left wall)",
+      "room": "Living room",
+      "location_in_image": "ev_001: immediately right of itm_004 on the same wall, slightly lower and smaller overall.",
+      "visible_observations": "Light frame with a white print border or mat, portrait orientation, dark subject that is too small and too reflective to identify.",
+      "supporting_evidence_ids": [
+        "ev_001"
+      ],
+      "brand": null,
+      "model": null,
+      "purchase_date": null,
+      "purchase_price": null,
+      "currency": null,
+      "proposed_receipt_evidence_id": null,
+      "review_status": "needs_review",
+      "user_confirmed_fields": []
+    },
+    {
+      "item_id": "itm_006",
+      "name": "Red tubular-frame chair",
+      "room": "Living room",
+      "location_in_image": "ev_001: centre-left, between the left wall and the tall window, with its back and side frame rising above the waterline; a second red seat shape appears just right of it near the window.",
+      "visible_observations": "Thin round tubular frame in a saturated red-orange, with a simple flat seat and back panel in the same tone; the side profile is open and ladder-like. Legs and floor contact are at or below the waterline and not visible, so it cannot be determined whether this is one chair or two overlapping chairs.",
+      "supporting_evidence_ids": [
+        "ev_001"
+      ],
+      "brand": null,
+      "model": null,
+      "purchase_date": null,
+      "purchase_price": null,
+      "currency": null,
+      "proposed_receipt_evidence_id": null,
+      "review_status": "needs_review",
+      "user_confirmed_fields": []
+    },
+    {
+      "item_id": "itm_007",
+      "name": "Low table with objects on top",
+      "room": "Living room",
+      "location_in_image": "ev_001: centre of the frame at the waterline, in front of the tall window and to the left of the armchair, under and beside the red chair frame.",
+      "visible_observations": "A pale horizontal top surface partly above the water, carrying small unidentifiable objects and dark bundled material that rests on the water surface. Table legs, material and the identity of the objects on top are not discernible.",
+      "supporting_evidence_ids": [
+        "ev_001"
+      ],
+      "brand": null,
+      "model": null,
+      "purchase_date": null,
+      "purchase_price": null,
+      "currency": null,
+      "proposed_receipt_evidence_id": null,
+      "review_status": "needs_review",
+      "user_confirmed_fields": []
+    },
+    {
+      "item_id": "itm_008",
+      "name": "Small vase with dried stems",
+      "room": "Living room",
+      "location_in_image": "ev_001: lower left, immediately left of the armchair at the waterline. ev_002: bottom-left corner, partly cut off by the frame edge.",
+      "visible_observations": "A small light-coloured vessel holding a sparse spray of pale dried stems or seed heads. The body of the vase is at or below the water surface, so its material and full shape are not visible.",
+      "supporting_evidence_ids": [
+        "ev_001",
+        "ev_002"
+      ],
+      "brand": null,
+      "model": null,
+      "purchase_date": null,
+      "purchase_price": null,
+      "currency": null,
+      "proposed_receipt_evidence_id": null,
+      "review_status": "needs_review",
+      "user_confirmed_fields": []
+    }
+  ],
+  "findings": [
+    {
+      "finding_id": "fnd_001",
+      "type": "possible_duplicate",
+      "item_ids": [
+        "itm_001"
+      ],
+      "evidence_ids": [
+        "ev_001",
+        "ev_002"
+      ],
+      "explanation": "Both photos show one brown tufted armchair with the same rolled-arm profile, the same mottled upholstery and the same stained horizontal tide line, in front of the same pair of right-hand windows. ev_002 is the tighter crop of that same chair and, per the manifest, was cropped from ev_001, so these are two views of one object rather than two chairs. Recorded once as itm_001 so the chair is not counted twice in the inventory.",
+      "status": "needs_review"
+    },
+    {
+      "finding_id": "fnd_002",
+      "type": "possible_duplicate",
+      "item_ids": [
+        "itm_008"
+      ],
+      "evidence_ids": [
+        "ev_001",
+        "ev_002"
+      ],
+      "explanation": "A small vase of dried stems appears at the bottom-left of ev_002 and at the lower-left of ev_001 beside the armchair. Both views are consistent with one small vase, and because ev_002 is a crop of ev_001 this is one object seen twice rather than two vases. Recorded once as itm_008.",
+      "status": "needs_review"
+    },
+    {
+      "finding_id": "fnd_003",
+      "type": "missing_information",
+      "item_ids": [],
+      "evidence_ids": [
+        "ev_003"
+      ],
+      "explanation": "The ev_003 receipt prints one line for a brass-finish floor lamp with a white linen drum shade, 62 in, 'Item # NW-LMP-4410', for 89.99. No floor lamp answering that description is visible in either photo: the lighting in ev_001 is a dark two-shade pendant fixture and a cluster of bare globe bulbs, and no visible object shares a brand, item number, colour, material or size with the receipt. No receipt match is proposed; the line stays unmatched until a photo of the lamp is supplied.",
+      "status": "needs_review"
+    },
+    {
+      "finding_id": "fnd_004",
+      "type": "missing_information",
+      "item_ids": [],
+      "evidence_ids": [
+        "ev_004"
+      ],
+      "explanation": "The ev_004 receipt lists groceries only (Bananas 2 lb 1.38, Whole milk 1 gal 4.29, Sourdough bread 5.49, Eggs dozen 3.99, TOTAL 15.15). No visible object in either photo corresponds to any line, so it is left unmatched. It is not in conflict with ev_003, which is a different vendor, date and category.",
+      "status": "needs_review"
+    },
+    {
+      "finding_id": "fnd_005",
+      "type": "missing_information",
+      "item_ids": [],
+      "evidence_ids": [
+        "ev_001",
+        "ev_002"
+      ],
+      "explanation": "Neither photo shows a label, brand mark, model number, serial tag, maker's stamp or date. Purchase date, purchase price, currency and model are therefore null for every item, and ownership is unverified for all of them because the room may have been furnished by a landlord or a previous tenant.",
+      "status": "needs_review"
+    },
+    {
+      "finding_id": "fnd_006",
+      "type": "missing_information",
+      "item_ids": [
+        "itm_001",
+        "itm_002",
+        "itm_003",
+        "itm_004",
+        "itm_005",
+        "itm_006",
+        "itm_007",
+        "itm_008"
+      ],
+      "evidence_ids": [
+        "ev_001",
+        "ev_002"
+      ],
+      "explanation": "ev_001 is a split-level composite with an even blue underwater band containing recoloured, mirrored shapes (keyboard, guitar, cushion, typewriter, buckets). That below-waterline portion is not treated as a documentary record, so no object is enumerated from it and no condition observation is made there. No damage, cause or ownership conclusion is drawn from either photo.",
+      "status": "needs_review"
+    },
+    {
+      "finding_id": "fnd_007",
+      "type": "missing_information",
+      "item_ids": [
+        "itm_001"
+      ],
+      "evidence_ids": [
+        "ev_001",
+        "ev_002"
+      ],
+      "explanation": "There is no independent second viewpoint of the room. Because ev_002 is derived from ev_001, hidden areas (chair underside and legs, table base, the wall behind the armchair, the right-hand wall, the rest of the room off-frame) are documented nowhere. Any item whose base or full extent matters needs a separate, uncropped photo.",
+      "status": "needs_review"
+    },
+    {
+      "finding_id": "fnd_008",
+      "type": "conflicting_information",
+      "item_ids": [
+        "itm_006"
+      ],
+      "evidence_ids": [
+        "ev_001"
+      ],
+      "explanation": "The red tubular seating cannot be resolved into a definite count: one ladder-profile frame is clearly visible while a second red seat shape appears immediately to its right near the window. This may be two chairs, or one chair plus its reflection at the waterline. Recorded once as itm_006 pending the renter's confirmation of how many red chairs were in the room.",
+      "status": "needs_review"
+    }
+  ],
+  "questions": [
+    {
+      "question_id": "q_001",
+      "item_id": "itm_001",
+      "question": "Is the brown tufted armchair yours, and do you have a receipt, order confirmation or photo of it from before the flood?",
+      "reason": "Ownership, purchase date and price are all null, and neither supplied receipt matches the chair, so it currently has no supporting document."
+    },
+    {
+      "question_id": "q_002",
+      "item_id": null,
+      "question": "Was there a brass-finish floor lamp with a white linen drum shade about 62 inches tall (Item # NW-LMP-4410) in this room? If so, can you send a photo showing it?",
+      "reason": "The ev_003 receipt prints exactly that lamp at 89.99, but no lamp of that description is visible in ev_001 or ev_002, so the line stays unmatched."
+    },
+    {
+      "question_id": "q_003",
+      "item_id": "itm_006",
+      "question": "How many red tubular-frame chairs were in this room, and how many do you see in the photo?",
+      "reason": "One ladder-profile frame is clear, plus a second red seat shape that may be a second chair or a waterline reflection."
+    },
+    {
+      "question_id": "q_004",
+      "item_id": null,
+      "question": "Do the two pendant fixtures (the dark two-shade pendant and the four hanging globe bulbs) belong to you, or were they part of the rented property?",
+      "reason": "Both look like fixed or hardwired fixtures with no receipt, so it is unclear whether they are personal belongings or the landlord's fittings."
+    },
+    {
+      "question_id": "q_005",
+      "item_id": null,
+      "question": "Can you provide original, unedited camera photos of this room taken before and after the flood?",
+      "reason": "The wide view is a composite with a stylised underwater band and the close-up is a crop of it, so the room has only one true viewpoint."
+    }
+  ],
+  "limitations": [
+    "Staged demo case: both receipts are fictional, are headed 'STAGED DEMO - NOT A REAL RECEIPT', and are treated only as demo material rather than proof of purchase; two unrelated receipts are not reported as conflicting with each other.",
+    "The attached photos are stock/composite imagery rather than the renter's own documentary photographs; ev_001 is a split-level composite with a mirrored, recoloured underwater band.",
+    "ev_002 is a crop of ev_001 per the manifest, so the investigation has only one true viewpoint of the room.",
+    "The manifest supplied evidence labels by description rather than by filename; each label was bound to the attachment matching that description, and the binding is recorded in evidence[].filename.",
+    "No brand, model, serial number, purchase date, purchase price, currency or loss date is visible or supplied; all such values are null rather than estimated.",
+    "No replacement cost, payout, coverage, liability or insurer-approval assessment is made, and no damage, cause or ownership conclusion is drawn from the photos.",
+    "Only 8 visible belongings could be distinguished; objects under the waterline, off-frame, or indeterminate in the composite were deliberately not enumerated."
+  ],
+  "receipt_extracts": [
+    {
+      "evidence_id": "ev_003",
+      "source_filename": "04_receipt_lamp__1__d5f58c0c.png",
+      "vendor_as_printed": "NORTHWIND HOME GOODS",
+      "receipt_number": "DEMO-20817",
+      "is_template": true,
+      "date_as_printed": "03/04/2024",
+      "normalized_date": null,
+      "date_interpretation": "Printed in ambiguous numeric form 03/04/2024. It could be 4 March 2024 (day/month) or 3 April 2024 (month/day); the receipt prints no locale, country or month name, so no normalized date is asserted.",
+      "currency": null,
+      "placeholder_text_detected": [
+        "** STAGED DEMO - NOT A REAL RECEIPT **",
+        "(fictional store, demo only)",
+        "Paid: card ending 0000 (demo)"
+      ],
+      "line_items": [
+        {
+          "description_as_printed": "Floor lamp, brass finish white linen drum shade, 62 in - Item # NW-LMP-4410 (Order # DEMO-20817)",
+          "quantity": null,
+          "unit_price": null,
+          "line_amount": "89.99"
+        }
+      ],
+      "subtotal_as_printed": "89.99",
+      "tax_as_printed": "8.10",
+      "discount_as_printed": null,
+      "total_as_printed": "98.09",
+      "arithmetic_check": "Consistent: the single line amount 89.99 equals the printed Subtotal 89.99, and 89.99 + 8.10 Tax = 98.09 TOTAL."
+    },
+    {
+      "evidence_id": "ev_004",
+      "source_filename": "05_receipt_groceries__1__b1bd5996.png",
+      "vendor_as_printed": "GREENLEAF MARKET",
+      "receipt_number": null,
+      "is_template": true,
+      "date_as_printed": "Jan 12 2025",
+      "normalized_date": "2025-01-12",
+      "date_interpretation": "The month is spelled out as 'Jan', so there is no day/month ambiguity and the date normalizes to 2025-01-12.",
+      "currency": null,
+      "placeholder_text_detected": [
+        "** STAGED DEMO - NOT A REAL RECEIPT **",
+        "(fictional store, demo only)"
+      ],
+      "line_items": [
+        {
+          "description_as_printed": "Bananas 2 lb",
+          "quantity": "2 lb",
+          "unit_price": null,
+          "line_amount": "1.38"
+        },
+        {
+          "description_as_printed": "Whole milk 1 gal",
+          "quantity": "1 gal",
+          "unit_price": null,
+          "line_amount": "4.29"
+        },
+        {
+          "description_as_printed": "Sourdough bread",
+          "quantity": null,
+          "unit_price": null,
+          "line_amount": "5.49"
+        },
+        {
+          "description_as_printed": "Eggs dozen",
+          "quantity": "dozen",
+          "unit_price": null,
+          "line_amount": "3.99"
+        }
+      ],
+      "subtotal_as_printed": null,
+      "tax_as_printed": null,
+      "discount_as_printed": null,
+      "total_as_printed": "15.15",
+      "arithmetic_check": "Consistent: 1.38 + 4.29 + 5.49 + 3.99 = 15.15, matching the printed TOTAL 15.15. Quantities are printed inline in the item text, and no unit-price column, subtotal or tax line appears on this receipt."
+    }
+  ]
+}
