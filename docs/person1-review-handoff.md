@@ -273,3 +273,116 @@ the question text, item link and `answered_at` are still returned by
 
 Answers never confirm inventory fields, and they never overwrite a reviewer's
 existing decisions.
+
+
+---
+
+# Researcher: product research for one belonging (v0.8.0, confirmed contract)
+
+Second agent, own App ID (`a7260cbc-8253-4fa7-88d3-c644267e3221`) and credential.
+Suggestions only — nothing it returns changes an inventory item.
+
+## Endpoints (canonical)
+
+```
+POST /api/items/{item_id}/research
+GET  /api/research/{research_id}
+GET  /api/items/{item_id}/research
+```
+
+The old case-scoped URLs still work as aliases.
+
+## Start
+
+```http
+POST /api/items/itm_a16684bd49c2/research
+Content-Type: application/json
+
+{ "region_currency": "USD", "requested_by": "priya" }
+```
+
+`region_currency` is optional; **omit it and no region/currency is assumed**.
+
+- `202 Accepted` → new run queued.
+- `200 OK` → an identical request while a run is already queued/running returns
+  that run; no second paid run is started. Use the returned `id`.
+
+```json
+{ "id": "rsch_9f21c0a7b3d4", "item_id": "itm_a16684bd49c2", "status": "queued",
+  "region_currency": "USD", "agent_run_id": null, "candidate_ids": [] }
+```
+
+## Poll
+
+```http
+GET /api/research/rsch_9f21c0a7b3d4
+```
+
+```json
+{
+  "run": { "id": "rsch_…", "status": "complete", "candidates_valid": 1,
+           "error": null, "queries_run": ["strandmon wing chair"],
+           "limitations": ["Prices shown are retail listings, not purchase prices."],
+           "input_summary": { "item_ref": "itm_…", "region_currency": "USD" } },
+  "candidates": [
+    { "candidate_id": "cand_001", "brand": "IKEA", "model": "STRANDMON",
+      "product_name": "STRANDMON wing chair",
+      "product_url": "https://www.ikea.com/us/en/p/strandmon-wing-chair",
+      "matching_features": ["wing back"], "differing_features": ["leg colour differs"],
+      "missing_verification": "Measurements not confirmed.",
+      "price_as_displayed": "$349.00", "currency": "USD",
+      "source_accessed_at": "2026-10-24T21:00:00Z",
+      "status": "unverified_possible_match", "unverified": true }
+  ]
+}
+```
+
+Statuses: `queued` → `running` → `complete` | `failed`.
+
+| Status | Meaning |
+|---|---|
+| `queued` / `running` | still working → keep polling (~3 s) |
+| `complete` | `candidates` is final; may be **empty** (valid: no matches) |
+| `failed` | `run.error` explains why (`RESEARCH_INVALID_RESULT: …`) |
+
+## Rendering rules
+
+- Always show an **"Unverified suggestion"** badge (`status` /
+  `unverified: true`).
+- `price_as_displayed` is what a shop page showed — not a purchase price and not
+  a replacement value. Never copy it into `purchase_price` or `estimated_value`.
+- Show `matching_features`, `differing_features` and `missing_verification` so the
+  reviewer can judge the match.
+- To accept, the reviewer edits the item via `PATCH /api/items/{id}` (brand,
+  model, purchase_price are correctable) — normal revision/conflict rules apply.
+- `queries_run` and `limitations` are shown as provenance ("what was searched",
+  "what this cannot tell you").
+
+## Errors
+
+```jsonc
+// 404
+{ "detail": { "code": "RESEARCH_NOT_FOUND", "message": "Research run 'rsch_x' was not found." } }
+// 409 — mock mode
+{ "detail": { "code": "CREAO_MODE_MOCK", "message": "…" } }
+// 503 — missing CREAO_RESEARCH_API_KEY
+{ "detail": { "code": "RESEARCH_NOT_CONFIGURED", "message": "Researcher is not configured: CREAO_RESEARCH_API_KEY." } }
+```
+
+A `failed` run still returns `200` from `GET /api/research/{id}` with
+`run.status = "failed"` and `run.error` set.
+
+## Required environment variables
+
+| Variable | Purpose |
+|---|---|
+| `CREAO_RESEARCH_APP_ID` | `a7260cbc-8253-4fa7-88d3-c644267e3221` |
+| `CREAO_RESEARCH_API_KEY` | Researcher `capi_` key (server-side only) |
+| `CREAO_MODE=live` | research is refused in mock mode |
+| `REBUILD_PUBLIC_BASE_URL` | optional; enables `room_photos` URLs |
+
+## Real-run status
+
+**No live Researcher run has been executed.** Everything above is verified
+against faked CREAO responses (the contract shape, validation, dedupe, isolation
+and persistence). The first real run is the remaining check.

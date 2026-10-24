@@ -1,6 +1,6 @@
 # Rebuild API contract
 
-**Status:** v0.6.4 — owned by Person 3 (backend). URL-based evidence + recovery of already-completed CREAO runs.
+**Status:** v0.8.0 — owned by Person 3 (backend). URL-based evidence + recovery of already-completed CREAO runs.
 **Base URL (local):** `http://localhost:8000`
 **Machine-readable schema:** `GET /openapi.json` · interactive docs at `/docs`
 
@@ -875,6 +875,119 @@ unchanged, so existing UI code keeps working.
 
 ---
 
+## 6g. Researcher — Rebuild Product Researcher (confirmed contract)
+
+A second, independent app-scoped CREAO agent (App ID
+`a7260cbc-8253-4fa7-88d3-c644267e3221`) with its own credential
+(`CREAO_RESEARCH_API_KEY`). The Investigator's App ID and credential are never
+used for research, and vice versa.
+
+Research is **advisory**. Candidates live in separate records, are always
+`unverified_possible_match`, and never modify an item's brand, model,
+purchase_price, purchase_date, currency, estimated_value, confirmed fields or
+review status.
+
+### Routes
+
+| Route | Purpose |
+|---|---|
+| `POST /api/items/{item_id}/research` | start (or rejoin) research |
+| `GET /api/research/{research_id}` | status + candidates + queries + limitations |
+| `GET /api/items/{item_id}/research` | saved research history (newest first) |
+
+Case-scoped aliases remain for compatibility:
+`POST /api/cases/{c}/items/{i}/research`, `GET /api/cases/{c}/items/{i}/research/{run}`,
+`GET /api/cases/{c}/items/{i}/research`, `GET /api/cases/{c}/research/{run}/candidates`.
+
+### Start
+
+```json
+{ "region_currency": "USD", "requested_by": "priya" }
+```
+
+`region_currency` is **optional and explicit** — the backend never infers a
+region or currency.
+
+`202 Accepted` (new run):
+
+```json
+{
+  "id": "rsch_9f21c0a7b3d4", "case_id": "case_…", "item_id": "itm_…",
+  "status": "queued", "mode": "live",
+  "app_id": "a7260cbc-8253-4fa7-88d3-c644267e3221",
+  "region_currency": "USD", "agent_run_id": null,
+  "candidate_ids": [], "queries_run": [], "limitations": []
+}
+```
+
+`200 OK` with the **existing run** when that item already has one queued or
+running — a duplicate click never starts a second paid run.
+
+### Poll
+
+```json
+{
+  "run": {
+    "id": "rsch_…", "status": "complete", "agent_run_id": "creao-run-…",
+    "thread_id": "…", "error": null, "region_currency": "USD",
+    "candidates_valid": 1, "candidate_ids": ["rc_…"],
+    "queries_run": ["strandmon wing chair"],
+    "limitations": ["Prices shown are retail listings, not purchase prices."],
+    "input_summary": { "item_ref": "itm_…", "visible_observations": "…",
+                       "room_photo_upload_ids": ["upl_…"], "region_currency": "USD" }
+  },
+  "candidates": [
+    {
+      "id": "rc_…", "candidate_id": "cand_001",
+      "run_id": "rsch_…", "case_id": "case_…", "item_id": "itm_…",
+      "brand": "IKEA", "model": "STRANDMON",
+      "product_name": "STRANDMON wing chair",
+      "product_url": "https://www.ikea.com/us/en/p/strandmon-wing-chair",
+      "matching_features": ["wing back", "deep brown upholstery"],
+      "differing_features": ["leg colour differs"],
+      "missing_verification": "Measurements not confirmed against the photo.",
+      "price_as_displayed": "$349.00", "currency": "USD",
+      "source_accessed_at": "2026-10-24T21:00:00Z",
+      "status": "unverified_possible_match", "unverified": true
+    }
+  ]
+}
+```
+
+Statuses: `queued` → `running` → `complete` | `failed`. On failure `error` carries
+the code and message (e.g. `RESEARCH_INVALID_RESULT: item_ref mismatch…`).
+
+`signed evidence URLs are never returned` — only `room_photo_upload_ids` inside
+`input_summary`. The full `input_snapshot` is stored server-side for audit.
+
+### Agent inputs (built server-side)
+
+| Field | Type | Source |
+|---|---|---|
+| `item_ref` | string | backend item id |
+| `visible_observations` | string \| null | the Investigator's observations |
+| `distinguishing_features` | string[] | documented features only (never invented) |
+| `evidence_context` | **JSON string** | evidence IDs, descriptions, attributed human corrections |
+| `room_photos` | string[] | HTTPS URLs of supporting photographs |
+| `region_currency` | string | present only when supplied explicitly |
+
+### Output validation
+
+`research-candidates.json` must be `{item_ref, candidates[], queries_run[], limitations[]}`.
+The run **fails** (never fabricates) when:
+
+1. `item_ref` ≠ the requested backend item id;
+2. more than **3** candidates;
+3. any candidate `status` ≠ `"unverified_possible_match"`;
+4. a `product_url` is present but not `http(s)`;
+5. the document is malformed or an artifact is unreadable.
+
+An **empty** `candidates` array is valid and means "no matches". Missing values
+stay `null`. `queries_run` and `limitations` are preserved. Re-importing the same
+run is idempotent (candidate ids are deterministic).
+
+---
+
 ## 7. Comments, events and export
 
 ### `GET /api/cases/{case_id}/comments` → `Comment[]`
@@ -1018,6 +1131,8 @@ which is normalised to `unknown`).
 
 | Version | Change |
 |---|---|
+| 0.8.0 | Researcher aligned to Person 1's confirmed contract: canonical `/api/items/{id}/research` + `/api/research/{id}` routes, explicit `region_currency`, exact input keys, strict `research-candidates.json` validation (max 3, fixed status, item_ref match), active-run dedupe, redacted input snapshot. |
+| 0.7.0 | Researcher agent integration: separate `CREAO_RESEARCHER_API_KEY`/App ID, async research runs per item, `research-candidates.json` validation, unverified candidates isolated from inventory, persisted in SpacetimeDB. Also made `brand`/`model`/`purchase_date`/`purchase_price` human-correctable. |
 | 0.6.4 | `review_answers` narrowed to the exact v1.3.1 contract (`question_id`, `answer`, `answered_by` as a JSON string); saved timestamps/history still stored in SpacetimeDB. |
 | 0.6.3 | Follow-up investigations: `review_answers` JSON-string input, stable per-upload `evidence_id`, case-level item reconciliation (`new`/`matched`/`identity_conflict`), findings/questions matched by agent id so human decisions survive, plus `follow_up` / `items_*` counters. |
 | 0.6.2 | Question answers (`PATCH /api/cases/{id}/questions/{q}`) and finding resolutions (`PATCH /api/cases/{id}/findings/{f}`) with per-record revisions, 400/404/409 handling, an append-only `decision_event` audit trail, persistence in SpacetimeDB and live broadcast. Review responses now embed answers/resolutions. |

@@ -221,6 +221,56 @@ const spacetimedb = schema({
     }
   ),
 
+  // Researcher runs and their (always unverified) candidates
+  research_run: table(
+    { public: true },
+    {
+      id: t.string().primaryKey(),
+      case_id: t.string(),
+      item_id: t.string(),
+      status: t.string(),
+      mode: t.string(),
+      app_id: t.string(),
+      agent_run_id: t.string(),
+      thread_id: t.string(),
+      error: t.string(),
+      region_currency: t.string(),
+      input_summary_json: t.string(),
+      queries_run_json: t.string(),
+      limitations_json: t.string(),
+      candidate_ids_json: t.string(),
+      candidates_valid: t.u64(),
+      candidates_invalid: t.u64(),
+      requested_by: t.string(),
+      created_at: t.string(),
+      finished_at: t.string(),
+    }
+  ),
+
+  research_candidate: table(
+    { public: true },
+    {
+      id: t.string().primaryKey(),
+      candidate_id: t.string(),
+      run_id: t.string(),
+      case_id: t.string(),
+      item_id: t.string(),
+      brand: t.string(),
+      model: t.string(),
+      product_name: t.string(),
+      product_url: t.string(),
+      matching_features_json: t.string(),
+      differing_features_json: t.string(),
+      missing_verification: t.string(),
+      price_as_displayed: t.string(),
+      currency: t.string(),
+      source_accessed_at: t.string(),
+      status: t.string(),
+      unverified: t.bool(),
+      created_at: t.string(),
+    }
+  ),
+
   // Shared activity feed for the collaboration sidebar.
   activity: table(
     { public: true },
@@ -632,6 +682,65 @@ export const apply_finding_decision = spacetimedb.reducer(
   }
 );
 
+export const upsert_research_run = spacetimedb.reducer(
+  { payload: t.string() },
+  (ctx, { payload }) => {
+    const p = JSON.parse(payload);
+    const row = {
+      id: p.id,
+      case_id: p.case_id,
+      item_id: p.item_id,
+      status: p.status ?? 'queued',
+      mode: p.mode ?? 'live',
+      app_id: p.app_id ?? '',
+      agent_run_id: p.agent_run_id ?? '',
+      thread_id: p.thread_id ?? '',
+      error: p.error ?? '',
+      region_currency: p.region_currency ?? '',
+      input_summary_json: JSON.stringify(p.input_summary ?? {}),
+      queries_run_json: JSON.stringify(p.queries_run ?? []),
+      limitations_json: JSON.stringify(p.limitations ?? []),
+      candidate_ids_json: JSON.stringify(p.candidate_ids ?? []),
+      candidates_valid: BigInt(p.candidates_valid ?? 0),
+      candidates_invalid: BigInt(p.candidates_invalid ?? 0),
+      requested_by: p.requested_by ?? '',
+      created_at: p.created_at ?? now(),
+      finished_at: p.finished_at ?? '',
+    };
+    if (ctx.db.research_run.id.find(row.id)) ctx.db.research_run.id.update(row);
+    else ctx.db.research_run.insert(row);
+  }
+);
+
+export const upsert_research_candidate = spacetimedb.reducer(
+  { payload: t.string() },
+  (ctx, { payload }) => {
+    const p = JSON.parse(payload);
+    const row = {
+      id: p.id,
+      candidate_id: p.candidate_id ?? '',
+      run_id: p.run_id,
+      case_id: p.case_id,
+      item_id: p.item_id,
+      brand: p.brand ?? '',
+      model: p.model ?? '',
+      product_name: p.product_name ?? '',
+      product_url: p.product_url ?? '',
+      matching_features_json: JSON.stringify(p.matching_features ?? []),
+      differing_features_json: JSON.stringify(p.differing_features ?? []),
+      missing_verification: p.missing_verification ?? '',
+      price_as_displayed: p.price_as_displayed ?? '',
+      currency: p.currency ?? '',
+      source_accessed_at: p.source_accessed_at ?? '',
+      status: p.status ?? 'unverified_possible_match',
+      unverified: true,
+      created_at: p.created_at ?? now(),
+    };
+    if (ctx.db.research_candidate.id.find(row.id)) ctx.db.research_candidate.id.update(row);
+    else ctx.db.research_candidate.insert(row);
+  }
+);
+
 export const upsert_decision_event = spacetimedb.reducer(
   { payload: t.string() },
   (ctx, { payload }) => {
@@ -711,6 +820,8 @@ export const clear_case = spacetimedb.reducer({ case_id: t.string() }, (ctx, { c
   for (const row of [...ctx.db.question.iter()]) if (row.case_id === case_id) ctx.db.question.id.delete(row.id);
   for (const row of [...ctx.db.comment.iter()]) if (row.case_id === case_id) ctx.db.comment.id.delete(row.id);
   for (const row of [...ctx.db.task.iter()]) if (row.case_id === case_id) ctx.db.task.id.delete(row.id);
+  for (const row of [...ctx.db.research_candidate.iter()]) if (row.case_id === case_id) ctx.db.research_candidate.id.delete(row.id);
+  for (const row of [...ctx.db.research_run.iter()]) if (row.case_id === case_id) ctx.db.research_run.id.delete(row.id);
   for (const row of [...ctx.db.decision_event.iter()]) if (row.case_id === case_id) ctx.db.decision_event.id.delete(row.id);
   for (const row of [...ctx.db.activity.iter()]) if (row.case_id === case_id) ctx.db.activity.id.delete(row.id);
   for (const row of [...ctx.db.investigation.iter()]) if (row.case_id === case_id) ctx.db.investigation.id.delete(row.id);

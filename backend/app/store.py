@@ -23,6 +23,8 @@ from .models import (
     Finding,
     Investigation,
     Question,
+    ResearchCandidate,
+    ResearchRun,
     Revision,
     Upload,
 )
@@ -44,6 +46,8 @@ class Store:
         self.findings: dict[str, Finding] = {}
         self.questions: dict[str, Question] = {}
         self.decision_events: dict[str, DecisionEvent] = {}
+        self.research_runs: dict[str, ResearchRun] = {}
+        self.research_candidates: dict[str, ResearchCandidate] = {}
         self.events: list[Event] = []
 
     # -- lifecycle ---------------------------------------------------------- #
@@ -60,6 +64,8 @@ class Store:
                 self.findings,
                 self.questions,
                 self.decision_events,
+                self.research_runs,
+                self.research_candidates,
             ):
                 collection.clear()
             self.events.clear()
@@ -119,6 +125,19 @@ class Store:
                 (d for d in self.decision_events.values() if d.case_id == case_id),
                 key=lambda d: d.created_at,
             )
+
+    def list_research_runs(self, case_id: str, item_id: str | None = None) -> list[ResearchRun]:
+        with self._lock:
+            runs = [
+                r for r in self.research_runs.values()
+                if r.case_id == case_id and (item_id is None or r.item_id == item_id)
+            ]
+            return sorted(runs, key=lambda r: r.created_at, reverse=True)
+
+    def list_research_runs_by_item(self, item_id: str) -> list[ResearchRun]:
+        with self._lock:
+            runs = [r for r in self.research_runs.values() if r.item_id == item_id]
+            return sorted(runs, key=lambda r: r.created_at, reverse=True)
 
     def list_revisions(self, item_id: str) -> list[Revision]:
         with self._lock:
