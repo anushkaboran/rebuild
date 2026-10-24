@@ -21,13 +21,13 @@ Example output: `demo/sample-result.json` · Correction test: `demo/correction-t
 `case_summary`, `evidence`, `items`, `findings`, `questions`, `limitations`, `receipt_extracts`
 
 ### evidence[]
-`evidence_id`, `filename`, `evidence_type` (photo|receipt|other), `readable`, `description`
+`evidence_id`, `filename`, `evidence_type` (photo|receipt|document|unknown), `readable`, `description`
 
 ### items[]
 `item_id` (`itm_###`), `name`, `room`, `location_in_image`, `visible_observations`, `supporting_evidence_ids[]`, `brand`, `model`, `purchase_date`, `purchase_price` (string), `currency`, `proposed_receipt_evidence_id`, `review_status` (needs_review|confirmed), `user_confirmed_fields[]`
 
 ### findings[]
-`finding_id` (`fnd_###`), `type` (possible_duplicate|missing_information|conflicting_information|receipt_match), `item_ids[]`, `evidence_ids[]`, `explanation`, `status` (needs_review|resolved), `resolution_reason` (null unless resolved)
+`finding_id` (`fnd_###`), `type` (possible_duplicate|missing_information|conflicting_information|proposed_receipt_match), `item_ids[]`, `evidence_ids[]`, `explanation`, `status` (needs_review|resolved), `resolution_reason` (null unless resolved)
 
 ### questions[]
 `question_id` (`q_###`), `item_id`, `question`, `reason`, `status` (open|resolved), `resolution_reason`
