@@ -33,6 +33,7 @@ type Result = {
 }
 
 export default function Inventory() {
+  const [panel, setPanel] = useState<'details' | 'evidence' | 'review'>('details')
   const [resolutions, setResolutions] = useState<Record<string, string>>({})
   const [corrections, setCorrections] = useState<Record<string, Record<string, string>>>({})
   const [result, setResult] = useState<Result | null>(null)
@@ -51,7 +52,7 @@ export default function Inventory() {
         throw new Error('Demo file is missing items or evidence.')
       }
       setResult(data)
-      setSelectedId(data.items[0]?.item_id ?? '')
+      setSelectedId('')
     } catch {
       setError('Could not load the sample. Check public/demo-result.json.')
     } finally {
@@ -101,7 +102,10 @@ export default function Inventory() {
                 className="item-card"
                 key={item.item_id}
                 aria-pressed={item.item_id === selectedId}
-                onClick={() => setSelectedId(item.item_id)}
+                onClick={() => {
+    setSelectedId(item.item_id)
+    setPanel('details')
+  }}
               >
                 <small>{item.item_id}</small>
                 <strong>{item.name}</strong>
@@ -112,10 +116,27 @@ export default function Inventory() {
             ))}
           </div>
 
+          {!selected && (
+            <div className="inventory-empty">
+              <span className="eyebrow">YOUR INVENTORY</span>
+              <h3>Select an item to take a closer look</h3>
+              <p>Its details, evidence, and review questions will appear here.</p>
+            </div>
+          )}
           {selected && (
             <article className="item-details">
               <h3>{selected.name}</h3>
-              <p>{selected.visible_observations}</p>
+              <div className="panel-switch" aria-label="Item information">
+                <button type="button" aria-pressed={panel === 'details'}
+    onClick={() => setPanel('details')}>Details</button>
+    <button type="button" aria-pressed={panel === 'review'}
+                  onClick={() => setPanel('review')}>Review</button>
+                <button type="button" aria-pressed={panel === 'evidence'}
+                  onClick={() => setPanel('evidence')}>
+                  Evidence ({selected.supporting_evidence_ids.length})
+                </button>
+              </div>
+{panel === 'details' && <div><details><summary>Visible observations</summary><p>{selected.visible_observations}</p></details>
               <details>
                 <summary>Location in the image</summary>
                 <p>{selected.location_in_image}</p>
@@ -137,7 +158,11 @@ export default function Inventory() {
               ))}
 
 
-              <h4>Supporting evidence</h4>
+              
+              </div>}
+
+              {panel === 'evidence' && <div className="evidence-panel">
+                <h4>Supporting evidence</h4>
               {selected.supporting_evidence_ids.map(id => {
                 const evidence = result.evidence.find(entry => entry.evidence_id === id)
                 return (
@@ -147,7 +172,9 @@ export default function Inventory() {
                   </details>
                 )
               })}
-            <ReviewFindings
+            
+              </div>}
+              {panel === 'review' && <ReviewFindings
       itemId={selected.item_id}
       findings={result.findings}
       questions={result.questions}
@@ -158,7 +185,8 @@ export default function Inventory() {
         delete next[id]
         return next
       })}
-    /></article>
+    />}
+</article>
           )}
         </>
       )}

@@ -18,21 +18,26 @@ function App() {
       </header>
 
       <main className="welcome">
-        <p className="eyebrow">ONE STEP AT A TIME</p>
-        <h1>A little order.<br />A way forward.</h1>
+        <div className="setup-layout"><div className="setup-copy"><p className="eyebrow">YOUR RECOVERY WORKSPACE</p>
+        <h1>Rebuild your record.<br /><span>One room at a time.</span></h1>
         <p className="intro">
-          Bring your photos and receipts together. Build a clear record
-          of your belongings, with evidence behind every detail.
+          Turn scattered photos and receipts into an organized inventory.
+          Review the details, fill the gaps, and keep the evidence together.
         </p>
 
-        <form
+        <ol className="setup-steps">
+            <li><span>01</span><div><strong>Add your evidence</strong><p>Room photos, close-ups, and receipts.</p></div></li>
+            <li><span>02</span><div><strong>Review what we find</strong><p>Check proposed items and connections.</p></div></li>
+            <li><span>03</span><div><strong>Build your recovery record</strong><p>Keep confirmed details linked to their sources.</p></div></li>
+          </ol>
+        </div><form
           className="case-form"
           onSubmit={(event) => {
             event.preventDefault()
             setStarted(true)
           }}
         >
-          <h2>Start your recovery record</h2>
+          <p className="eyebrow">LET’S GET STARTED</p><h2>Tell us about your room</h2>
 
           <label htmlFor="description">What happened?</label>
           <textarea
@@ -46,7 +51,7 @@ function App() {
             required
           />
 
-          <label htmlFor="room">Which room are we starting with?</label>
+          <label htmlFor="room">Room</label>
           <select
             id="room"
             value={room}
@@ -70,7 +75,7 @@ function App() {
               Uploads come next. Nothing has been sent or saved to a server.
             </p>
           )}
-        </form>{started && <EvidenceUpload />}
+        </form></div>{started && <EvidenceUpload />}
       <Inventory /></main>
     </div>
   )
