@@ -1,3 +1,4 @@
+import BackendReview from './BackendReview'
 import DownloadPdf from './DownloadPdf'
 import ItemCorrection from './ItemCorrection'
 import { useEffect, useRef, useState } from 'react'
@@ -463,9 +464,16 @@ export default function Inventory({ caseId, simulated = false, activeView = 'inv
                   {evidence.content_type?.startsWith('image/') && <img src={evidence.url} alt={evidence.description || evidence.filename} className="inventory-evidence-photo" loading="lazy" />}
                   <p><a href={evidence.url} target="_blank" rel="noreferrer">Open original evidence ↗</a></p>
                 </>}<p>{evidence?.description ?? 'No description is available for this source.'}</p></article> })}</div>
-              <div className="inventory-detail-body inventory-review-panel">{caseId || isSample ? <ReviewFindings readOnly={Boolean(caseId)} itemId={selected.item_id} findings={caseId ? records.findings.filter(f => !selected.investigation_id || f.finding_id.startsWith(selected.investigation_id + ':')) : records.findings} questions={caseId ? records.questions.filter(q => !selected.investigation_id || q.question_id.startsWith(selected.investigation_id + ':')) : records.questions} resolutions={resolutions} onResolve={(id, reason) => setResolutions(current => ({ ...current, [id]: reason }))} onUndo={undoResolution} /> : <div className="inventory-manual-review"><InventoryIcon name="check" /><h3>Let’s start with what you know.</h3><p>This item was added by you. Automatic review isn’t connected yet, so there are no generated questions or findings.</p><button type="button" className="button-primary" onClick={() => setPanel('details')}>Confirm item details<InventoryIcon name="arrow" /></button><small>{selected.user_confirmed_fields.length} fields confirmed · Saved in this tab</small></div>}</div>
+              <div className="inventory-detail-body inventory-review-panel">{caseId ? <BackendReview
+      caseId={caseId}
+      itemId={selected.item_id}
+      investigationId={selected.investigation_id}
+      findings={records.findings}
+      questions={records.questions}
+      onSaved={loadReview}
+    /> : isSample ? <ReviewFindings readOnly={Boolean(caseId)} itemId={selected.item_id} findings={caseId ? records.findings.filter(f => !selected.investigation_id || f.finding_id.startsWith(selected.investigation_id + ':')) : records.findings} questions={caseId ? records.questions.filter(q => !selected.investigation_id || q.question_id.startsWith(selected.investigation_id + ':')) : records.questions} resolutions={resolutions} onResolve={(id, reason) => setResolutions(current => ({ ...current, [id]: reason }))} onUndo={undoResolution} /> : <div className="inventory-manual-review"><InventoryIcon name="check" /><h3>Let’s start with what you know.</h3><p>This item was added by you. Automatic review isn’t connected yet, so there are no generated questions or findings.</p><button type="button" className="button-primary" onClick={() => setPanel('details')}>Confirm item details<InventoryIcon name="arrow" /></button><small>{selected.user_confirmed_fields.length} fields confirmed · Saved in this tab</small></div>}</div>
             </TransitionPanel>
-            <div className="inventory-modal-footer"><InventoryIcon name="info" /><p>{caseId ? 'Use Edit this item to save corrections. Findings and questions are read-only.' : 'Changes stay in this browser tab and reset on refresh.'}</p><DialogClose className="button-secondary">Done for now</DialogClose></div>
+            <div className="inventory-modal-footer"><InventoryIcon name="info" /><p>{caseId ? 'Item corrections, answers, and finding decisions are saved to this case.' : 'Changes stay in this browser tab and reset on refresh.'}</p><DialogClose className="button-secondary">Done for now</DialogClose></div>
           </>}
         </DialogContent>
       </Dialog>

@@ -76,3 +76,11 @@
 .item-correction label { display: block; margin: 16px 0; }
 .item-correction input, .item-correction textarea { display: block; margin-top: 8px; }
 .case-form .prototype, .topbar .prototype { border: 1px solid #657298; border-radius: 20px; padding: 8px 12px; font-size: 11px; }
+
+.backend-review fieldset { border: 0; padding: 0; min-width: 0; }
+.backend-review form label { display: block; margin: 16px 0; }
+.backend-review textarea,
+.backend-review input,
+.backend-review select { display: block; margin-top: 8px; }
+.backend-review textarea { min-height: 100px; }
+.backend-review form button { margin: 6px 8px 6px 0; }
