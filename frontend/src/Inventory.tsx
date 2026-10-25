@@ -474,6 +474,11 @@ export default function Inventory({ caseId, simulated = false, activeView = 'inv
                   <ProductResearch
                     key={selected.item_id}
                     itemId={selected.item_id}
+                    item={selected.revision == null ? undefined : {
+                      item_id: selected.item_id, revision: selected.revision,
+                      brand: selected.brand, model: selected.model,
+                    }}
+                    onSaved={loadReview}
                   />
                 )}
 

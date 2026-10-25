@@ -156,3 +156,10 @@
 @media (prefers-reduced-motion: reduce) {
   .research-spinner { animation: none; }
 }
+
+.research-selection { margin-top: 16px; }
+.research-selection fieldset { border: 1px solid #d9dbe5; border-radius: 8px; padding: 16px; min-width: 0; }
+.research-selection legend { font-weight: 650; }
+.research-selection button { margin: 8px 8px 0 0; }
+.product-research .research-recognition { display: flex; align-items: center; gap: 10px; margin: 16px 0; }
+.product-research .research-recognition input { width: auto; margin: 0; }

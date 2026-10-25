@@ -1,3 +1,5 @@
+import SelectResearchCandidate from './SelectResearchCandidate'
+import type { ResearchItem } from './SelectResearchCandidate'
 import './Research.css'
 
 export type ResearchCandidate = {
@@ -38,10 +40,11 @@ function FeatureList({ title, values }: {
 }
 
 export default function ResearchCandidates({
-  candidates, limitations = [],
+  candidates, limitations = [], selection,
 }: {
   candidates: ResearchCandidate[]
   limitations?: string[]
+  selection?: { item: ResearchItem; runId: string; onSaved: () => Promise<void> }
 }) {
   return (
     <section className="research-results" aria-label="Possible product matches">
@@ -83,6 +86,10 @@ export default function ResearchCandidates({
                   View product source ↗
                 </a>
               )}
+
+              {selection && <SelectResearchCandidate
+                key={selection.runId + candidate.candidate_id + selection.item.revision}
+                candidate={candidate} {...selection} /> }
 
               <FeatureList title="Matching features"
                 values={candidate.matching_features ?? []} />

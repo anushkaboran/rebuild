@@ -1,3 +1,4 @@
+import type { ResearchItem } from './SelectResearchCandidate'
 import { useEffect, useRef, useState } from 'react'
 import ResearchCandidates from './ResearchCandidates'
 import type { ResearchCandidate } from './ResearchCandidates'
@@ -15,7 +16,11 @@ type ResearchResult = {
   candidates: ResearchCandidate[]
 }
 
-export default function ProductResearch({ itemId }: { itemId: string }) {
+export default function ProductResearch({ itemId, item, onSaved }: {
+  itemId: string
+  item?: ResearchItem
+  onSaved?: () => Promise<void>
+}) {
   const [result, setResult] = useState<ResearchResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -189,7 +194,8 @@ export default function ProductResearch({ itemId }: { itemId: string }) {
               </details>
             </aside>
           )}
-          <ResearchCandidates candidates={result.candidates} />
+          <ResearchCandidates candidates={result.candidates}
+            selection={item && onSaved ? { item, runId: result.run.id, onSaved } : undefined} />
         </>
       )}
     </section>
