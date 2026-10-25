@@ -25,6 +25,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+from dataclasses import dataclass, field
 from typing import Any
 
 from ..config import settings
@@ -66,6 +67,42 @@ class ResearchNotConfigured(ResearchError):
 class ResearchInvalidResult(ResearchError):
     code = "RESEARCH_INVALID_RESULT"
     status_code = 502
+
+
+class ResearchNoArtifacts(ResearchInvalidResult):
+    """The completed run carried no artifact metadata at all."""
+
+    code = "RESEARCH_NO_ARTIFACTS"
+
+
+class ResearchArtifactNotFound(ResearchInvalidResult):
+    """Artifacts exist, but none contains the candidate document."""
+
+    code = "RESEARCH_ARTIFACT_NOT_FOUND"
+
+
+class ResearchArtifactAuth(ResearchInvalidResult):
+    """The artifact endpoint rejected the credential (401/403)."""
+
+    code = "RESEARCH_ARTIFACT_AUTH"
+
+
+class ResearchArtifactDownload(ResearchInvalidResult):
+    """Download/redirect failure (network, 4xx/5xx, empty body)."""
+
+    code = "RESEARCH_ARTIFACT_DOWNLOAD"
+
+
+class ResearchInvalidJson(ResearchInvalidResult):
+    """A candidate document was found but is not valid JSON."""
+
+    code = "RESEARCH_INVALID_JSON"
+
+
+class ResearchPersistenceFailed(ResearchInvalidResult):
+    """Validated results could not be written to SpacetimeDB."""
+
+    code = "RESEARCH_PERSIST_FAILED"
 
 
 def ensure_ready() -> None:
@@ -282,6 +319,17 @@ def _as_list(value: Any) -> list[str]:
     return []
 
 
+def _as_text_list(value: Any) -> list[str]:
+    """Arrays stay arrays; a bare string becomes a single-item list."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(entry) for entry in value if entry is not None]
+    if isinstance(value, str):
+        return [value] if value.strip() else []
+    return [str(value)]
+
+
 def _text(value: Any) -> str | None:
     if value is None:
         return None
@@ -313,7 +361,7 @@ def normalise_candidate(
         product_url=raw.get("product_url"),
         matching_features=_as_list(raw.get("matching_features")),
         differing_features=_as_list(raw.get("differing_features")),
-        missing_verification=_text(raw.get("missing_verification")),
+        missing_verification=_as_text_list(raw.get("missing_verification")),
         price_as_displayed=_text(raw.get("price_as_displayed")),
         currency=_text(raw.get("currency")),
         source_accessed_at=_text(raw.get("source_accessed_at")),
@@ -337,7 +385,10 @@ def import_result(run: ResearchRun, payload: dict[str, Any]) -> tuple[list[Resea
                 "error": None,
                 "candidate_ids": [c.id for c in candidates],
                 "candidates_valid": len(candidates),
-                "queries_run": [str(q) for q in payload["queries_run"]],
+                "queries_run": [
+                    q if isinstance(q, (str, dict)) else str(q)
+                    for q in payload["queries_run"]
+                ],
                 "limitations": [str(item) for item in payload["limitations"]],
                 "finished_at": utcnow(),
             }
@@ -386,10 +437,13 @@ async def poll_and_collect(run_id: str) -> ResearchRun:
     run = store.research_runs[run_id]
     async with client() as api:
         final = await api.poll_run(run.agent_run_id or "")
-        payload = await _fetch_payload(api, final)
+        payload, source, probes = await fetch_payload(api, final)
 
     _, finished = import_result(
         run.model_copy(update={"thread_id": final.get("threadId")}), payload
+    )
+    finished = finished.model_copy(
+        update={"error": f"artifact source: {source}"[:200]} if False else {}
     )
     logger.info(
         "research %s complete: %d candidate(s)", run_id, finished.candidates_valid
@@ -397,35 +451,295 @@ async def poll_and_collect(run_id: str) -> ResearchRun:
     return finished
 
 
-async def _fetch_payload(api: creao.CreaoAppClient, final: dict[str, Any]) -> Any:
-    result = final.get("result") or {}
-    artifacts = [a for a in (result.get("artifacts") or []) if isinstance(a, dict)]
-    preferred = [
-        a for a in artifacts
-        if str(a.get("title") or "").strip().lower() == "research-candidates.json"
-    ]
-    pool = preferred or [
-        a for a in artifacts
-        if "research-candidates" in str(a.get("title") or "").lower()
-    ]
+def _artifact_name_matches(artifact: dict[str, Any]) -> bool:
+    """True for the candidate document, whatever CREAO calls the artifact.
 
-    errors: list[str] = []
-    for artifact in pool:
+    Matches the title *or* the id/path, because CREAO has been observed to use a
+    human title while the file name only appears in `id`.
+    """
+    haystack = " ".join(
+        str(artifact.get(key) or "") for key in ("title", "name", "id", "path", "filename")
+    ).lower()
+    return "research-candidates" in haystack or "research_candidates" in haystack
+
+
+def _artifact_looks_json(artifact: dict[str, Any]) -> bool:
+    return "json" in str(artifact.get("type") or "").lower() or _artifact_name_matches(artifact)
+
+
+def _is_candidate_document(payload: Any) -> bool:
+    return isinstance(payload, dict) and "item_ref" in payload and "candidates" in payload
+
+
+def _result_containers(result: dict[str, Any]) -> list[tuple[str, list[dict[str, Any]]]]:
+    """Every list of artifact-like objects the run response actually contains.
+
+    We do not assume a field name: whatever is present under the documented
+    containers is inspected.
+    """
+    containers: list[tuple[str, list[dict[str, Any]]]] = []
+    for key in ("artifacts", "outputs", "files", "attachments"):
+        value = result.get(key)
+        if isinstance(value, list):
+            entries = [entry for entry in value if isinstance(entry, dict)]
+            if entries:
+                containers.append((f"result.{key}", entries))
+    return containers
+
+
+@dataclass
+class ArtifactProbe:
+    """Sanitized description of one artifact attempt (never holds a URL)."""
+
+    container: str
+    title: str | None
+    type: str | None
+    has_url: bool
+    bytes: int | None = None
+    json: bool | None = None
+    keys: list[str] = field(default_factory=list)
+    error: str | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "container": self.container,
+            "title": self.title,
+            "type": self.type,
+            "has_url": self.has_url,
+            "bytes": self.bytes,
+            "json": self.json,
+            "keys": self.keys,
+            "error": self.error,
+        }
+
+
+async def fetch_payload(
+    api: creao.CreaoAppClient, final: dict[str, Any]
+) -> tuple[Any, str, list[ArtifactProbe]]:
+    """Find and download the candidate document. Never guesses a location.
+
+    Strategy, in order:
+      1. every artifact that looks like the candidate document (by name/type);
+      2. every other artifact, whatever its title — accepted only if its body
+         parses as JSON *and* matches the contract (item_ref + candidates);
+      3. inline text (`result.text` / `chatText`) as a last resort.
+
+    Raises a coded error when nothing usable is found, with a sanitized probe
+    list so the cause is diagnosable from the API.
+    """
+    result = final.get("result") or {}
+    containers = _result_containers(result)
+    probes: list[ArtifactProbe] = []
+
+    if not containers:
+        # No artifact metadata anywhere: report exactly that.
+        raise ResearchNoArtifacts(
+            "The completed Researcher run returned no artifact metadata "
+            f"(result fields present: {', '.join(sorted(result.keys())) or 'none'})."
+        )
+
+    ordered: list[tuple[str, dict[str, Any]]] = []
+    for container, entries in containers:
+        ordered.extend(
+            (container, entry) for entry in sorted(
+                entries, key=lambda e: (not _artifact_name_matches(e), not _artifact_looks_json(e))
+            )
+        )
+
+    saw_auth_error = False
+    saw_download_error = False
+    saw_invalid_json = False
+
+    for container, artifact in ordered:
+        probe = ArtifactProbe(
+            container=container,
+            title=artifact.get("title") or artifact.get("name"),
+            type=artifact.get("type"),
+            has_url=bool(artifact.get("url")),
+        )
         url = artifact.get("url")
         if not url:
+            probe.error = "no download URL on this artifact"
+            probes.append(probe)
             continue
-        try:
-            raw = await api.download_artifact(url)   # redirect-safe, key-scoped
-            return json.loads(raw.decode())
-        except json.JSONDecodeError as exc:
-            errors.append(f"{artifact.get('title')}: invalid JSON ({exc})")
-        except Exception as exc:  # noqa: BLE001
-            errors.append(f"{artifact.get('title')}: {exc}")
 
-    raise ResearchInvalidResult(
-        "Researcher run completed but no readable research-candidates.json was found"
-        + (f" ({'; '.join(errors)})" if errors else ""),
+        try:
+            raw = await api.download_artifact(url)  # redirect-safe, key-scoped
+        except creao.CreaoError as exc:
+            probe.error = f"{exc.code}: {str(exc)[:200]}"
+            code = exc.code or ""
+            if "AUTH" in code or "401" in str(exc) or "403" in str(exc):
+                saw_auth_error = True
+            else:
+                saw_download_error = True
+            probes.append(probe)
+            continue
+        except Exception as exc:  # noqa: BLE001
+            probe.error = f"download failed: {str(exc)[:200]}"
+            saw_download_error = True
+            probes.append(probe)
+            continue
+
+        probe.bytes = len(raw)
+        try:
+            payload = json.loads(raw.decode())
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            probe.json = False
+            probe.error = f"invalid JSON: {exc}"
+            saw_invalid_json = True
+            probes.append(probe)
+            continue
+
+        probe.json = True
+        probe.keys = sorted(payload.keys()) if isinstance(payload, dict) else []
+        probes.append(probe)
+
+        if _is_candidate_document(payload):
+            return payload, f"{container}:{probe.title or 'artifact'}", probes
+
+        probe.error = "JSON, but not a research-candidates document"
+
+    # 3. inline fallback
+    for key in ("text", "chatText"):
+        blob = result.get(key)
+        if isinstance(blob, str):
+            parsed = creao._parse_json_blob(blob)
+            if _is_candidate_document(parsed):
+                return parsed, f"result.{key}", probes
+
+    if saw_auth_error:
+        raise ResearchArtifactAuth(
+            "The artifact endpoint rejected the Researcher credential while downloading "
+            "research-candidates.json."
+        )
+    if saw_download_error:
+        raise ResearchArtifactDownload(
+            "research-candidates.json could not be downloaded (network or redirect failure)."
+        )
+    if saw_invalid_json:
+        raise ResearchInvalidJson(
+            "An artifact was found but it is not valid JSON."
+        )
+    raise ResearchArtifactNotFound(
+        "No artifact in the completed run contains a research-candidates document."
     )
+
+
+# kept for backwards compatibility with the previous private name
+_fetch_payload = fetch_payload
+
+
+def diagnose(final: dict[str, Any], probes: list[ArtifactProbe] | None = None) -> dict[str, Any]:
+    """Sanitized structure report — no URLs, no credentials, no headers."""
+    result = final.get("result") or {}
+    return {
+        "run_status": final.get("status"),
+        "error_code": final.get("errorCode"),
+        "result_fields": sorted(result.keys()) if isinstance(result, dict) else [],
+        "artifacts_seen": len(probes or []),
+        "probes": [probe.as_dict() for probe in (probes or [])],
+    }
+
+
+async def recover_run(research_id: str, creao_run_id: str) -> tuple[ResearchRun, str]:
+    """Re-import an already-completed CREAO run into an existing research record.
+
+    Never creates a CREAO run. Idempotent: candidates are keyed deterministically
+    per run, and an already-complete run is returned untouched.
+    """
+    ensure_ready()
+    run = store.research_runs.get(research_id)
+    if run is None:
+        raise ResearchError(
+            f"Research run '{research_id}' is not known to this backend.",
+            code="RESEARCH_NOT_FOUND",
+            status_code=404,
+        )
+
+    completed_marker = (
+        run.status == InvestigationStatus.complete
+        and run.agent_run_id == creao_run_id
+        and run.candidate_ids
+    )
+
+    async with client() as api:
+        try:
+            final = await api.get_run(creao_run_id)
+        except creao.CreaoError as exc:
+            raise ResearchError(
+                f"Could not read CREAO run {creao_run_id}: {exc.code}",
+                code="RESEARCH_RUN_UNREADABLE",
+                status_code=502,
+            ) from exc
+
+        status = str(final.get("status") or "").lower()
+        if status not in {"completed", "succeeded", "success"}:
+            raise ResearchError(
+                f"CREAO run {creao_run_id} is '{status or 'unknown'}' — only a completed "
+                "run can be recovered.",
+                code="RESEARCH_RUN_NOT_COMPLETED",
+                status_code=409,
+            )
+
+        payload, source, probes = await fetch_payload(api, final)
+
+    # Validate before touching anything.
+    validate_result(payload, expected_item_ref=run.item_id)
+
+    if completed_marker:
+        return run, f"already recovered from {source}"
+
+    with store.lock:
+        store.research_runs[research_id] = run.model_copy(
+            update={"agent_run_id": creao_run_id, "status": InvestigationStatus.running}
+        )
+
+    _, finished = import_result(run.model_copy(update={"agent_run_id": creao_run_id}), payload)
+
+    # Persistence must succeed before the run is reported complete.
+    if settings.store_backend == "spacetime":
+        from . import spacetime_db
+
+        try:
+            spacetime_db.sync()
+        except Exception as exc:  # noqa: BLE001
+            failed = finished.model_copy(
+                update={
+                    "status": InvestigationStatus.failed,
+                    "error": f"RESEARCH_PERSIST_FAILED: {str(exc)[:300]}",
+                    "finished_at": utcnow(),
+                }
+            )
+            with store.lock:
+                store.research_runs[research_id] = failed
+            raise ResearchPersistenceFailed(
+                "research-candidates.json validated but could not be persisted."
+            ) from exc
+
+    logger.info(
+        "recovered research %s from CREAO run %s (%s, %d candidate(s))",
+        research_id,
+        creao_run_id,
+        source,
+        finished.candidates_valid,
+    )
+    return finished, source
+
+
+async def diagnose_run(creao_run_id: str) -> dict[str, Any]:
+    """Read a run and report its (sanitized) output structure. No downloads kept."""
+    ensure_ready()
+    async with client() as api:
+        final = await api.get_run(creao_run_id)
+        probes: list[ArtifactProbe] = []
+        try:
+            _, source, probes = await fetch_payload(api, final)
+            outcome = {"resolved": True, "source": source}
+        except ResearchError as exc:
+            outcome = {"resolved": False, "code": exc.code, "message": exc.message}
+    report = diagnose(final, probes)
+    report.update(outcome)
+    return report
 
 
 # --------------------------------------------------------------------------- #

@@ -381,6 +381,58 @@ A `failed` run still returns `200` from `GET /api/research/{id}` with
 | `CREAO_MODE=live` | research is refused in mock mode |
 | `REBUILD_PUBLIC_BASE_URL` | optional; enables `room_photos` URLs |
 
+## Recovering a run whose artifact was missed (v0.8.1)
+
+If a research record failed with `no readable research-candidates.json`, recover
+the **existing** CREAO run — no new paid run:
+
+```http
+POST /api/research/rsch_3491e9cce4aa/recover
+{ "creao_run_id": "11626040-0ac3-44db-84cd-59c6f22279cc" }
+```
+
+`200` → `{ run, candidates, source, already_recovered }`, with
+`run.status = "complete"`. Calling it again returns `already_recovered: true`
+and adds nothing.
+
+To see what the agent actually returned (safe to share — no URLs or secrets):
+
+```http
+GET /api/research/rsch_3491e9cce4aa/diagnostics
+```
+
+```json
+{ "run_status": "completed", "result_fields": ["artifacts", "chatText", "text"],
+  "artifacts_seen": 2, "resolved": true, "source": "result.artifacts:Outputs",
+  "probes": [ { "container": "result.artifacts", "title": "Outputs",
+                "type": "application/octet-stream", "has_url": true,
+                "bytes": 1841, "json": true,
+                "keys": ["candidates", "item_ref", "limitations", "queries_run"],
+                "error": null } ] }
+```
+
+Error codes are listed in `docs/contract.md` §6g — they distinguish “no artifact
+metadata” from “artifact found but unusable”, so a support question can be
+answered without guessing.
+
+### Shapes you will actually receive (v0.8.2)
+
+Verified against the live run's unmodified `research-candidates.json`:
+
+```json
+"missing_verification": ["No dimensions could be taken…", "Chair base … cannot be seen."],
+"queries_run": [ { "query": "upholstered armchair rolled arms …", "tool": "web_search" },
+                 { "query": "ikea.com/us/en/p/ektorp…", "tool": "web_fetch" } ],
+"currency": null,
+"price_as_displayed": "€ 349"
+```
+
+- `missing_verification` is an **array** — render it as a bullet list.
+- `queries_run` is an array of **objects** — show `tool` as the source badge.
+- `currency: null` is legitimate; pair it with `price_as_displayed`'s own symbol
+  rather than assuming a currency.
+- `source_accessed_at` is passed through untouched.
+
 ## Real-run status
 
 **No live Researcher run has been executed.** Everything above is verified
