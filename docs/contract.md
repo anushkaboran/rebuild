@@ -1330,6 +1330,33 @@ call is made.
 - `ADMIN_TOKEN` must be set in Render → Environment; the admin routes fail closed
   without it.
 
+
+---
+
+## 6l. Unicode-safe download headers (v0.10.3)
+
+Uploaded filenames are arbitrary Unicode and are **never** written raw into an
+HTTP header. `Content-Disposition` is produced by one helper
+(`storage.content_disposition`) used by every download route:
+
+- an ASCII fallback (`filename="Screenshot 2026-10-24 at 11.31.08 PM.png"`), so
+  older clients still get a readable name;
+- plus RFC 5987 `filename*=UTF-8''…` with the exact original name when it is not
+  ASCII.
+
+Header values are always latin-1 encodable, and quotes/newlines are neutralised.
+`Upload.original_filename` itself is stored unchanged — the encoding happens only
+at the header boundary.
+
+Routes covered: `GET /api/evidence/{upload_id}/public` (signed, what the agent
+fetches), `GET /api/uploads/{upload_id}/file`, the signed claim-PDF route, and
+`GET /api/cases/{id}/export.pdf`.
+
+Symptom this fixes: a filename containing U+202F (narrow no-break space), e.g.
+`Screenshot 2026-10-24 at 11.31.08\u202fPM.png`, raised `UnicodeEncodeError`
+inside the ASGI layer and surfaced as **HTTP 500** on the signed route only —
+the local route used Starlette's own RFC 5987 handling and returned 200.
+
 ---
 
 ## 7. Comments, events and export

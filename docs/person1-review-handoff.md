@@ -549,3 +549,47 @@ The signed public URL the agent uses is checked, without printing it, by
 ephemeral, so it disappears on redeploy. For production reliability attach a
 Render Disk for `UPLOAD_DIR` or move evidence to object storage; otherwise repeat
 the restore after each deploy.
+
+
+---
+
+# Unicode filenames & Render verification (v0.10.3)
+
+Filenames are no longer placed raw into HTTP headers. A name like
+`Screenshot 2026-10-24 at 11.31.08 PM.png` (U+202F before `PM`) previously
+made the signed evidence URL return **500**; it now returns the image with a
+standards-compliant header:
+
+```
+Content-Disposition: inline; filename="Screenshot 2026-10-24 at 11.31.08 PM.png"; filename*=UTF-8''Screenshot%202026-10-24%20at%2011.31.08%E2%80%AFPM.png
+```
+
+`original_filename` in the database is untouched. Nothing else about the upload,
+its ids, evidence links or bytes changes.
+
+## Verify on Render (read-only, no agent runs)
+
+```bash
+# the previously failing upload
+curl -s -H "X-Admin-Token: $ADMIN_TOKEN" \
+  "https://rebuild-api.onrender.com/api/admin/evidence/upl_5c31dbba9a8c/check" | jq
+
+# the one that already worked, to prove nothing regressed
+curl -s -H "X-Admin-Token: $ADMIN_TOKEN" \
+  "https://rebuild-api.onrender.com/api/admin/evidence/upl_173230835194/check" | jq
+```
+
+Expect for both: `http_status: 200`, `content_type: "image/png"`,
+`byte_count > 0`, `valid_png_signature: true`.
+
+## Render notes
+
+- The fix ships with the backend; a **redeploy is required** and Render restarts
+  the instance, so the in-memory store is cleared. Export first
+  (`GET /api/admin/export`) and re-import after the deploy
+  (`POST /api/admin/import`), then re-restore any upload whose bytes are missing
+  (`POST /api/admin/uploads/{id}/restore-file`).
+- Uploaded files live on the ephemeral disk: they disappear on deploy/restart.
+  Keep the originals locally, or attach a Render Disk / move evidence to object
+  storage for durability.
+- `ADMIN_TOKEN` must exist in Render's environment; the admin routes fail closed.
