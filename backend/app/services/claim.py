@@ -469,6 +469,8 @@ def build_recovery_pdf(case: Case) -> bytes:
         uploads=store.list_uploads(case.id),
         investigations=store.list_investigations(case.id),
         revisions=revisions,
+        findings=store.list_findings(case.id),
+        questions=store.list_questions(case.id),
     )
 
 

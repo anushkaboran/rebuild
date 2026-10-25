@@ -486,3 +486,30 @@ the backend has no send capability.
 only from human revisions / `user_confirmed_fields`, everything else is labelled
 as an agent observation. `missing_information` and `warnings` are arrays of
 strings and may both be empty.
+
+
+---
+
+## Claim draft UI behaviour (v0.10.1)
+
+**Button:** `Prepare claim email`
+
+**On `202` / `200`:** show the submission as pending and poll
+`GET /api/claim-submissions/{id}` every ~3 s. Polling is a read — it can never
+create a run or a second draft.
+
+| `result_status` | UI |
+|---|---|
+| `draft_ready` | **"Draft created — not sent"**, with `subject`, `recipient_email`, `attachment_filename`, and `gmail_draft_id` for reference |
+| `needs_information` | list `missing_information`; the agent drafted nothing |
+| `draft_failed` | "No draft was created" + `warnings`; **do not auto-retry** — tell the user to check Gmail first |
+| `status: failed` | show `error`; same rule, check Gmail before any resubmit |
+
+**On `409 CLAIM_DUPLICATE`:** an earlier submission already produced a draft (or
+may have). Show `detail.gmail_draft_id` / `detail.existing_status` and link to
+`GET /api/claim-submissions/{detail.existing_submission_id}`. Only after the user
+confirms in Gmail that **no** draft exists should the UI offer "create another
+draft", which must send `allow_resubmit: true`.
+
+Always render a permanent "Draft only — nothing is sent by Rebuild" note. There is
+no send action in the API, so never build a send button.

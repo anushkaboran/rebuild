@@ -1222,6 +1222,34 @@ an attachment (the agent then adds its "no attachment" warning).
 The PDF bytes are held on the submission in memory only; after a restart the URL
 404s, which is fine — the agent fetches it during the run.
 
+
+### Recovery PDF rules (v0.10.1)
+
+The PDF served to the Claim Assistant is the **same** generator used by
+`GET /api/cases/{id}/export.pdf`:
+
+- values are labelled **"Estimated item value"** — not a replacement-cost
+  determination, coverage decision or payout amount;
+- when nothing is valued the figure reads **"Not estimated"** — never `USD 0`;
+- unknown currency is printed bare, never defaulted to USD;
+- per-currency totals are kept separate and never summed across currencies;
+- a partial total says `(partial: N of M unvalued)`;
+- a **Human review record** section lists question answers (with reviewer),
+  finding resolutions and reasons, unresolved questions, and reviewers;
+- **Agent observations — not human-confirmed** lists the Investigator's own
+  observations separately from human decisions;
+- unverified Researcher candidates are never included.
+
+### Claim submissions in snapshots
+
+`GET /api/admin/export` includes `claim_submissions[]` with ids, statuses,
+`agent_run_id`, `result_status`, `gmail_draft_id`, `gmail_message_id`, subject,
+body, attachment filename, `missing_information`, `warnings`, `error` and
+timestamps. Import preserves them exactly, never calls CREAO or Gmail, and keeps
+duplicate protection live (a restored `draft_ready` still returns
+`409 CLAIM_DUPLICATE`). Older snapshots without the key remain valid; PDF bytes
+are never exported.
+
 ---
 
 ## 7. Comments, events and export
