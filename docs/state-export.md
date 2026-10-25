@@ -112,3 +112,64 @@ curl -s -X POST localhost:8000/api/admin/verify \
 |---|---|
 | Demo / hackathon | snapshot + import is enough |
 | Anything that must survive a crash | set `STORE_BACKEND=spacetime`; the snapshot is then a backup, not the source of truth |
+
+---
+
+## 3b. Evidence photos after a restore (v0.9.1)
+
+`Upload.stored_path` is excluded from the snapshot, so restored uploads start with
+`stored_path = ""`. Before v0.9.1 that resolved to the uploads **directory**,
+`FileResponse` raised `IsADirectoryError`, and the public evidence URL returned
+**500** — which is why a Researcher can finish using written observations but
+never inspect the photo.
+
+v0.9.1 resolves the file by upload id on disk (`uploads/<case_id>/<upload_id>.*`),
+re-attaches `stored_path` during import, and returns a clean **404
+`EVIDENCE_FILE_MISSING`** when the bytes are genuinely absent.
+
+### Did the bytes survive?
+
+```bash
+ls -l backend/uploads/*/upl_173230835194.* 2>/dev/null || echo "MISSING ON DISK"
+```
+
+- **Found** → nothing else to do; restart with v0.9.1 and the signed URL serves it.
+- **Not found** → the image was never copied back. Restore it from your original
+  `backend/uploads/` copy, or re-upload it as a **new** upload. Do not fabricate
+  replacement evidence and do not rewrite the existing upload id.
+
+### Verify without running the Researcher again
+
+```bash
+# 1. local route
+curl -s -o /tmp/photo.bin -w "%{http_code} %{content_type} %{size_download}\n" \
+  http://127.0.0.1:8000/api/uploads/upl_173230835194/file
+file /tmp/photo.bin          # expect "JPEG image data" / "PNG image data"
+
+# 2. the exact URL shape the Researcher receives (minted server-side, not printed)
+python - <<'PY'
+from app.services import evidence_urls
+import urllib.request
+url = evidence_urls.upload_url("upl_173230835194")
+with urllib.request.urlopen(url) as r:
+    body = r.read()
+    print("status:", r.status,
+          "| content-type:", r.headers.get("content-type"),
+          "| bytes:", len(body),
+          "| jpeg:", body[:3] == b"\xff\xd8\xff",
+          "| png:", body[:8] == b"\x89PNG\r\n\x1a\n")
+PY
+```
+
+No signed URL is printed — only status, type, length and a magic-byte check.
+
+### Inspect the completed Researcher run without rerunning it
+
+```bash
+curl -s localhost:8000/api/research/rsch_484120b13d89 | jq '.run | {status, agent_run_id, error}'
+curl -s localhost:8000/api/research/rsch_484120b13d89 | jq '.candidates[]? | {candidate_id, product_name, status}'
+curl -s localhost:8000/api/research/rsch_484120b13d89/diagnostics | jq '.result_fields, .probes'
+```
+
+The run's `limitations` record that the photo could not be fetched — that stays
+true for **that** run and is not rewritten. The fix applies to future runs.

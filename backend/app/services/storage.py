@@ -116,6 +116,49 @@ async def save_upload(case_id: str, upload_id: str, file: UploadFile) -> StoredF
     )
 
 
+def _case_dir(case_id: str) -> Path:
+    return settings.upload_dir / case_id
+
+
+def resolve_upload_path(upload) -> Path | None:
+    """Find the bytes for an upload, even when `stored_path` was never exported.
+
+    `Upload.stored_path` is excluded from every API response (it is an internal
+    path), so an upload restored from a snapshot has `stored_path == ""`. Rather
+    than trusting that field alone we fall back to the on-disk naming convention
+    `<upload_id>.<ext>` inside the case directory, which is how uploads are
+    written in the first place.
+
+    Returns None when no *file* exists — never a directory, which is what used to
+    produce a 500 from FileResponse.
+    """
+    raw = getattr(upload, "stored_path", "") or ""
+    if raw:
+        try:
+            candidate = path_for(raw)
+        except HTTPException:
+            candidate = None
+        if candidate is not None and candidate.is_file():
+            return candidate
+
+    case_id = getattr(upload, "case_id", "") or ""
+    upload_id = upload.id
+    directories = [d for d in (_case_dir(case_id), settings.upload_dir) if d.is_dir()]
+    for directory in directories:
+        for candidate in sorted(directory.iterdir()):
+            if candidate.is_file() and candidate.stem == upload_id:
+                return candidate
+    return None
+
+
+def guessed_content_type(path: Path) -> str:
+    return {
+        ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+        ".webp": "image/webp", ".gif": "image/gif", ".heic": "image/heic",
+        ".pdf": "application/pdf",
+    }.get(path.suffix.lower(), "application/octet-stream")
+
+
 def path_for(rel_path: str) -> Path:
     """Resolve a stored relative path, refusing to escape the upload dir."""
     root = settings.upload_dir.resolve()

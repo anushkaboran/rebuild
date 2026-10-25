@@ -243,6 +243,12 @@ def _check_integrity(parsed: dict[str, list]) -> None:
 # --------------------------------------------------------------------------- #
 # Import
 # --------------------------------------------------------------------------- #
+def settings_upload_dir():
+    from ..config import settings
+
+    return settings.upload_dir
+
+
 def _human_decided(item: EvidenceItem) -> bool:
     return item.revision > 1 or item.status.value != "ai_suggested" or bool(item.user_confirmed_fields)
 
@@ -343,6 +349,39 @@ def import_snapshot(payload: dict[str, Any], *, on_conflict: str = "error") -> d
                     "updated_at": case.updated_at,
                 }
             )
+
+    # ---- repair stored_path from disk ---------------------------------- #
+    # stored_path is excluded from API responses, so restored uploads start with
+    # "". Re-attach the real file when it exists; never invent one.
+    repaired: list[str] = []
+    missing: list[str] = []
+    from . import storage  # local import avoids a cycle at module import time
+
+    with store.lock:
+        for upload in list(store.uploads.values()):
+            path = storage.resolve_upload_path(upload)
+            if path is None:
+                missing.append(upload.id)
+                continue
+            if upload.stored_path:
+                continue
+            try:
+                rel = str(path.relative_to(settings_upload_dir()))
+            except ValueError:
+                rel = f"{upload.case_id}/{path.name}"
+            store.uploads[upload.id] = upload.model_copy(
+                update={"stored_path": rel, "url": f"/api/uploads/{upload.id}/file"}
+            )
+            repaired.append(upload.id)
+
+    report["uploads_repaired"] = repaired
+    report["uploads_missing"] = missing
+    if missing:
+        logger.warning(
+            "snapshot import: %d upload(s) have no file on disk: %s",
+            len(missing),
+            ", ".join(missing[:10]),
+        )
 
     logger.info("snapshot import: %s", report["imported"])
     return report
