@@ -95,7 +95,7 @@ function App() {
         <ConnectionStatus />
       </header>
       <div className="app-main">
-        {view === 'overview' && <RoomGrid />}
+        <RoomGrid key={view} />
         <main ref={mainRef} id="main-content" className="main-content" tabIndex={-1}>
           <div hidden={view !== 'overview'}>
             <div className="overview-layout">
