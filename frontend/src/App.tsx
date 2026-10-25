@@ -3,6 +3,7 @@ import SavedCases from './SavedCases'
 import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { MotionConfig } from 'motion/react'
+import RoomGrid from './RoomGrid'
 import EvidenceUpload from './EvidenceUpload'
 import Inventory from './Inventory'
 import './App.css'
@@ -94,6 +95,7 @@ function App() {
         <ConnectionStatus />
       </header>
       <div className="app-main">
+        {view === 'overview' && <RoomGrid />}
         <main ref={mainRef} id="main-content" className="main-content" tabIndex={-1}>
           <div hidden={view !== 'overview'}>
             <div className="overview-layout">

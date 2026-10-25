@@ -13,12 +13,15 @@
 .nav-count { display: inline-flex; justify-content: center; align-items: center; min-width: 17px; height: 17px; background: #303b65; color: #fff; border-radius: 4px; font-size: 9px; }
 .local-pill { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; color: #c4cbe3; border: 1px solid #58648e; border-radius: 30px; font-size: 10px; white-space: nowrap; }
 .local-pill > span { width: 5px; height: 5px; background: var(--orange); border-radius: 50%; }
-.app-main { min-height: calc(100vh - 110px); display: flex; flex-direction: column; }
+.app-main { position: relative; isolation: isolate; min-height: calc(100vh - 110px); display: flex; flex-direction: column; }
 .app-shell[data-view='overview'] .app-main {
   background-image: linear-gradient(to right, rgb(153 171 230 / .065) 1px, transparent 1px), linear-gradient(to bottom, rgb(153 171 230 / .065) 1px, transparent 1px);
   background-size: 32px 32px;
-  background-position: center top;
+  background-position: left top;
 }
+.room-grid-trail { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; pointer-events: none; }
+.app-main > .main-content, .app-main > .app-footer { position: relative; z-index: 1; }
+@media (prefers-reduced-motion: reduce), (hover: none) and (pointer: coarse) { .room-grid-trail { display: none; } }
 .main-content { width: min(1280px, calc(100% - 88px)); margin: 0 auto; padding: 48px 0 40px; outline: none; }
 .overview-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 80px; align-items: center; min-height: calc(100vh - 258px); }
 .hero-copy { padding: 10px 0 24px; }
