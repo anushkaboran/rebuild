@@ -114,6 +114,9 @@ class Settings(BaseSettings):
     #               cache hydrated at startup. Explicit — there is no silent
     #               fallback if the database is unreachable.
     store_backend: Literal["memory", "spacetime"] = "memory"
+    # Optional shared secret for /api/admin/* (export/import). When unset the
+    # routes are limited to loopback callers.
+    admin_token: str = ""
     spacetimedb_url: str = "http://127.0.0.1:3000"
     spacetimedb_db: str = "rebuild"
 
