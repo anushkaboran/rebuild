@@ -1,3 +1,4 @@
+import ProductResearch from './ProductResearch'
 import UpdateInvestigation from './UpdateInvestigation'
 import BackendReview from './BackendReview'
 import DownloadPdf from './DownloadPdf'
@@ -468,6 +469,13 @@ export default function Inventory({ caseId, simulated = false, activeView = 'inv
                     {purchaseFields.map(renderField)}
                   </div>
                 </section>
+                {caseId && (
+                  <ProductResearch
+                    key={selected.item_id}
+                    itemId={selected.item_id}
+                  />
+                )}
+
               </div>
               <div className="inventory-detail-body inventory-evidence-panel"><div className="inventory-section-heading"><div><h3>Supporting evidence</h3><p>{caseId ? 'Evidence cited by this item. Unavailable or ambiguous links are not substituted.' : isSample ? 'Descriptions from the sample case. Original sample files aren’t included.' : 'Photos you selected for this item. No automated analysis has been performed.'}</p></div></div>{selected.supporting_evidence_ids.length === 0 && <p className="inventory-muted">No supporting evidence is linked to this item.</p>}{selected.supporting_evidence_ids.map(id => { const evidence = evidenceFor(id); return <article className="inventory-evidence-card" key={id}><div className="inventory-evidence-file"><span><InventoryIcon name="file" /></span><div><strong>{evidence?.filename ?? 'File unavailable'}</strong><small>{isSample ? 'Sample source description' : 'Selected photo'}</small></div></div>{!caseId && !isSample && photoFor(selected) && <PhotoPreview file={photoFor(selected)!} className="inventory-evidence-photo" />}{caseId && evidence?.url?.startsWith('/api/uploads/') && <>
                   {evidence.content_type?.startsWith('image/') && <img src={evidence.url} alt={evidence.description || evidence.filename} className="inventory-evidence-photo" loading="lazy" />}

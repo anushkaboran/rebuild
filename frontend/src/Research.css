@@ -1,0 +1,86 @@
+.research-results {
+  color: #252538;
+}
+.research-results > .helper {
+  margin-bottom: 16px;
+  color: #626274;
+  line-height: 1.6;
+}
+.research-candidate-list {
+  display: grid;
+  gap: 14px;
+}
+.research-candidate {
+  padding: 20px;
+  border: 1px solid #d9dbe5;
+  border-left: 4px solid #2943ed;
+  border-radius: 12px;
+  background: #fff;
+}
+.research-badge {
+  display: inline-block;
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: #fff0e8;
+  color: #913619;
+  font-size: 11px;
+  font-weight: 700;
+}
+.research-candidate h4 {
+  margin: 12px 0 8px;
+  color: #252538;
+  font-size: 18px;
+  line-height: 1.4;
+}
+.research-candidate p {
+  margin: 8px 0;
+  color: #626274;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.research-candidate a {
+  display: inline-block;
+  margin: 8px 0;
+  color: #233bc4;
+  font-weight: 650;
+}
+.research-features {
+  margin-top: 12px;
+  padding: 12px 0;
+  border-top: 1px solid #d9dbe5;
+}
+.research-features summary {
+  color: #252538;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 650;
+}
+.research-features li {
+  margin: 8px 0;
+  color: #626274;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.product-research {
+  margin-top: 24px;
+  padding: 20px;
+  border: 1px solid #d9dbe5;
+  border-radius: 12px;
+  background: #fff;
+  color: #252538;
+}
+.product-research > h3 {
+  margin: 0 0 10px;
+  color: #252538;
+}
+.product-research > p {
+  margin: 12px 0;
+  color: #626274;
+  line-height: 1.6;
+}
+.product-research > [role="alert"] {
+  color: #a22d13;
+  overflow-wrap: anywhere;
+}
