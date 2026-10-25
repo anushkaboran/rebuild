@@ -438,3 +438,78 @@ Verified against the live run's unmodified `research-candidates.json`:
 **No live Researcher run has been executed.** Everything above is verified
 against faked CREAO responses (the contract shape, validation, dedupe, isolation
 and persistence). The first real run is the remaining check.
+
+
+---
+
+# Claim submission drafts (v0.10.0)
+
+The backend prepares a Gmail **draft** through the Claim Submission Assistant.
+Nothing is ever sent, and the backend never contacts Gmail itself.
+
+```http
+POST /api/cases/{case_id}/claim-submission
+{
+  "sender_name": "Priya Raman",
+  "insurer_name": "Northwind Insurance",
+  "recipient_email": "claims@insurer.test",
+  "policy_number": "POL-12345",
+  "include_recovery_pdf": true
+}
+```
+
+- `202` → `{ submission: { id, status: "queued", … }, draft_created: false, sent: false }`
+- `200` → an identical request while one is running returns that submission
+  (no second agent run, no second draft)
+- `409 CLAIM_DUPLICATE` → a draft already exists or a prior attempt is uncertain.
+  Show `detail.gmail_draft_id` / `detail.existing_status` and require an explicit
+  "create another draft" action that sends `allow_resubmit: true`.
+
+```http
+GET /api/claim-submissions/{submission_id}
+GET /api/cases/{case_id}/claim-submissions
+```
+
+Render:
+
+| `result_status` | Meaning |
+|---|---|
+| `draft_ready` | a real unsent draft exists — show `gmail_draft_id`, `subject`, `attachment_filename` |
+| `needs_information` | nothing was drafted; show `missing_information` |
+| `draft_failed` | nothing was drafted; show `warnings` and never retry automatically |
+
+Always show `sent: false` as a badge ("Draft only — nothing was sent"). Never
+display a draft as sent, and never offer a "send" button that calls the backend —
+the backend has no send capability.
+
+`reviewed_record` is built server-side from the saved case: confirmed facts come
+only from human revisions / `user_confirmed_fields`, everything else is labelled
+as an agent observation. `missing_information` and `warnings` are arrays of
+strings and may both be empty.
+
+
+---
+
+## Claim draft UI behaviour (v0.10.1)
+
+**Button:** `Prepare claim email`
+
+**On `202` / `200`:** show the submission as pending and poll
+`GET /api/claim-submissions/{id}` every ~3 s. Polling is a read — it can never
+create a run or a second draft.
+
+| `result_status` | UI |
+|---|---|
+| `draft_ready` | **"Draft created — not sent"**, with `subject`, `recipient_email`, `attachment_filename`, and `gmail_draft_id` for reference |
+| `needs_information` | list `missing_information`; the agent drafted nothing |
+| `draft_failed` | "No draft was created" + `warnings`; **do not auto-retry** — tell the user to check Gmail first |
+| `status: failed` | show `error`; same rule, check Gmail before any resubmit |
+
+**On `409 CLAIM_DUPLICATE`:** an earlier submission already produced a draft (or
+may have). Show `detail.gmail_draft_id` / `detail.existing_status` and link to
+`GET /api/claim-submissions/{detail.existing_submission_id}`. Only after the user
+confirms in Gmail that **no** draft exists should the UI offer "create another
+draft", which must send `allow_resubmit: true`.
+
+Always render a permanent "Draft only — nothing is sent by Rebuild" note. There is
+no send action in the API, so never build a send button.

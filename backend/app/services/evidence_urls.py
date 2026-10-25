@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 
 UPLOAD_PATH = "/api/evidence/{upload_id}/public"
 PAYLOAD_PATH = "/api/evidence/payloads/{investigation_id}/public"
+CLAIM_PDF_PATH = "/api/evidence/claims/{submission_id}/pdf/public"
 
 # Content types CREAO's investigator can read.
 _ALLOWED_TYPE_PREFIXES = ("image/",)
@@ -61,7 +62,9 @@ class EvidenceUrlError(RuntimeError):
 # --------------------------------------------------------------------------- #
 def format_path(template: str, object_id: str) -> str:
     """Resolve a path template for a concrete id (used by sign *and* verify)."""
-    return template.format(upload_id=object_id, investigation_id=object_id)
+    return template.format(
+        upload_id=object_id, investigation_id=object_id, submission_id=object_id
+    )
 
 
 def _sign(path: str, object_id: str, exp: int) -> str:
@@ -106,6 +109,11 @@ def upload_url(upload_id: str) -> str:
 
 def payload_url(investigation_id: str) -> str:
     return _url(PAYLOAD_PATH, investigation_id)
+
+
+def claim_pdf_url(submission_id: str) -> str:
+    """Signed URL for a generated recovery PDF (agent must fetch it over HTTPS)."""
+    return _url(CLAIM_PDF_PATH, submission_id)
 
 
 # --------------------------------------------------------------------------- #

@@ -28,7 +28,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-from ..models import Case, EvidenceItem, Investigation, Revision, Upload
+from ..models import Case, EvidenceItem, Finding, Investigation, Question, Revision, Upload
 
 INK = colors.HexColor("#111827")
 MUTED = colors.HexColor("#6b7280")
@@ -91,10 +91,36 @@ def _styles() -> dict[str, ParagraphStyle]:
     }
 
 
-def _money(value: float | None, currency: str = "USD") -> str:
+def _money(value: float | None, currency: str | None) -> str:
+    """Format a value without inventing a currency.
+
+    `currency=None` means the record never established one, so the number is
+    printed bare rather than mislabelled as USD.
+    """
     if value is None:
-        return "—"
-    return f"{currency} {value:,.0f}"
+        return "Not estimated"
+    amount = f"{value:,.2f}".rstrip("0").rstrip(".")
+    return f"{currency} {amount}" if currency else amount
+
+
+def _valuation_summary(items: Sequence[EvidenceItem]) -> tuple[str, int, int]:
+    """Per-currency totals plus counts. Never mixes currencies, never uses zero
+    for an unknown value."""
+    valued = [i for i in items if i.estimated_value is not None]
+    unvalued = len(items) - len(valued)
+    if not valued:
+        return "Not estimated", 0, unvalued
+
+    totals: dict[str, float] = {}
+    for item in valued:
+        key = item.currency or ""
+        totals[key] = totals.get(key, 0.0) + float(item.estimated_value or 0)
+
+    parts = [_money(total, currency or None) for currency, total in sorted(totals.items())]
+    label = " + ".join(parts)
+    if unvalued:
+        label += f" (partial: {unvalued} of {len(items)} unvalued)"
+    return label, len(valued), unvalued
 
 
 def build_case_pdf(
@@ -104,6 +130,8 @@ def build_case_pdf(
     uploads: Sequence[Upload],
     investigations: Sequence[Investigation],
     revisions: Iterable[Revision],
+    findings: Sequence[Finding] = (),
+    questions: Sequence[Question] = (),
 ) -> bytes:
     styles = _styles()
     buffer = io.BytesIO()
@@ -167,14 +195,13 @@ def build_case_pdf(
 
     # --- summary ----------------------------------------------------------- #
     reviewed = sum(1 for i in items if i.status != "ai_suggested")
-    total = sum(i.estimated_value or 0 for i in items)
-    currency = next((i.currency for i in items if i.currency), "USD")
+    valuation, valued_count, unvalued_count = _valuation_summary(items)
 
     story.append(Paragraph("Summary", styles["h2"]))
     summary_rows = [
         ["Belongings recorded", str(len(items)), "Source uploads", str(len(uploads))],
         ["Reviewed by a person", f"{reviewed} of {len(items)}", "Agent runs", str(len(investigations))],
-        ["Estimated replacement cost", _money(total, currency), "Contributors", str(len(contributors)) or "1"],
+        ["Estimated item value", valuation, "Contributors", str(len(contributors)) or "1"],
     ]
     summary_table = Table(
         [[Paragraph(f"<b>{a}</b>", styles["cell"]),
@@ -198,6 +225,23 @@ def build_case_pdf(
         )
     )
     story.append(summary_table)
+    story.append(Spacer(1, 4))
+    story.append(
+        Paragraph(
+            "Estimated item value is a reviewer-entered figure, not an insurer "
+            "assessment, replacement-cost determination, coverage decision or payout "
+            "amount. Unknown values are shown as \"Not estimated\" and are never "
+            "counted as zero. Totals are kept separate per currency and are never "
+            "combined across currencies."
+            + (
+                f" {unvalued_count} belonging(s) have no value recorded"
+                + (" (partial total)." if valued_count else ".")
+                if unvalued_count
+                else ""
+            ),
+            styles["small"],
+        )
+    )
 
     # --- items ------------------------------------------------------------- #
     story.append(Paragraph("Belongings", styles["h2"]))
@@ -225,7 +269,7 @@ def build_case_pdf(
                     Paragraph(_escape(item.name), styles["cellbold"]),
                     Paragraph(_escape(item.room or "—"), styles["cell"]),
                     Paragraph(DAMAGE_LABEL.get(item.damage_level.value, item.damage_level.value), styles["cell"]),
-                    Paragraph(_money(item.estimated_value, item.currency), styles["cell"]),
+                    Paragraph(_escape(_money(item.estimated_value, item.currency)), styles["cell"]),
                     Paragraph(STATUS_LABEL.get(item.status.value, item.status.value), styles["cell"]),
                     Paragraph(_escape(evidence), styles["small"]),
                 ]
@@ -259,6 +303,107 @@ def build_case_pdf(
             )
         )
 
+    # --- human review vs agent observation --------------------------------- #
+    item_names = {i.id: i.name for i in items}
+    answers = [q for q in questions if getattr(q, "answer", None)]
+    open_questions = [q for q in questions if not getattr(q, "answer", None)]
+    decided = [f for f in findings if getattr(f, "resolution", None)]
+
+    story.append(Paragraph("Human review record", styles["h2"]))
+    story.append(
+        Paragraph(
+            "This section separates what a person confirmed from what the agent "
+            "reported. Nothing here is inferred.",
+            styles["small"],
+        )
+    )
+    story.append(Spacer(1, 6))
+
+    if answers:
+        story.append(Paragraph("Question answers", styles["cellbold"]))
+        for question in answers:
+            story.append(
+                Paragraph(
+                    f"<b>{_escape(question.question_id or '')}</b> "
+                    f"{_escape(question.question or '')}<br/>"
+                    f"<i>Answer:</i> {_escape(question.answer or '')}"
+                    + (
+                        f" — {_escape(question.answered_by or '')}"
+                        if getattr(question, "answered_by", None)
+                        else ""
+                    ),
+                    styles["body"],
+                )
+            )
+            story.append(Spacer(1, 3))
+    else:
+        story.append(Paragraph("No question answers were recorded.", styles["body"]))
+        story.append(Spacer(1, 6))
+
+    if decided:
+        story.append(Paragraph("Finding decisions", styles["cellbold"]))
+        for finding in decided:
+            story.append(
+                Paragraph(
+                    f"<b>{_escape(finding.finding_id or '')}</b> "
+                    f"{_escape(finding.finding_type or '')} → "
+                    f"{_escape(finding.resolution or '')}"
+                    + (
+                        f" ({_escape(finding.resolution_reason)})"
+                        if finding.resolution_reason
+                        else ""
+                    )
+                    + (
+                        f" — {_escape(finding.resolved_by)}"
+                        if getattr(finding, "resolved_by", None)
+                        else ""
+                    ),
+                    styles["body"],
+                )
+            )
+            story.append(Spacer(1, 3))
+    else:
+        story.append(Paragraph("No finding decisions were recorded.", styles["body"]))
+        story.append(Spacer(1, 6))
+
+    if open_questions:
+        story.append(Paragraph("Unresolved questions", styles["cellbold"]))
+        for question in open_questions:
+            story.append(
+                Paragraph(
+                    f"<b>{_escape(question.question_id or '')}</b> "
+                    f"{_escape(question.question or '')}",
+                    styles["body"],
+                )
+            )
+            story.append(Spacer(1, 3))
+    else:
+        story.append(Paragraph("No unresolved questions.", styles["body"]))
+        story.append(Spacer(1, 6))
+
+    if contributors:
+        story.append(Paragraph("Reviewers", styles["cellbold"]))
+        story.append(Paragraph(_escape(", ".join(contributors)), styles["body"]))
+        story.append(Spacer(1, 8))
+
+    observations = [
+        (i, i.visible_observations or i.condition) for i in items
+        if (i.visible_observations or i.condition)
+    ]
+    if observations:
+        story.append(Paragraph("Agent observations — not human-confirmed", styles["cellbold"]))
+        for item, observation in observations:
+            story.append(
+                Paragraph(
+                    f"<b>{_escape(item.name)}</b> "
+                    f"({_escape(STATUS_LABEL.get(item.status.value, item.status.value))}): "
+                    f"{_escape(observation)}",
+                    styles["small"],
+                )
+            )
+            story.append(Spacer(1, 2))
+        story.append(Spacer(1, 6))
+
     # --- audit trail ------------------------------------------------------- #
     if revision_list:
         story.append(PageBreak())
@@ -272,7 +417,6 @@ def build_case_pdf(
         )
         story.append(Spacer(1, 8))
 
-        item_names = {i.id: i.name for i in items}
         trail_header = [
             Paragraph("When", styles["head"]),
             Paragraph("Belonging", styles["head"]),

@@ -32,6 +32,8 @@ def export_case_pdf(case_id: str) -> Response:
         uploads=uploads,
         investigations=investigations,
         revisions=revisions,
+        findings=store.list_findings(case_id),
+        questions=store.list_questions(case_id),
     )
 
     # Mark the case as exported for the dashboard status chip.

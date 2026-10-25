@@ -1094,6 +1094,162 @@ The endpoint itself succeeded; the public URL did not.
 | 409 | `PUBLIC_BASE_URL_NOT_CONFIGURED` / `_INVALID` / `_INSECURE` / `_NOT_PUBLIC` | bad public base |
 | 503 | `ADMIN_TOKEN_NOT_CONFIGURED` | `ADMIN_TOKEN` unset |
 
+
+---
+
+## 6i. Claim Submission Assistant (Gmail DRAFT only)
+
+Third app-scoped agent (App ID `947ad3f0-04f6-4f81-b73a-50ff6b116bf0`), own
+credential `CREAO_CLAIM_API_KEY`. The Investigator and Researcher configurations
+are unchanged.
+
+**The backend never sends email and never touches Gmail.** The agent creates one
+*unsent* draft; a submission is only `draft_ready` when the agent reports a real
+`gmail_draft_id`.
+
+### Routes
+
+| Route | Purpose |
+|---|---|
+| `POST /api/cases/{case_id}/claim-submission` | prepare a draft |
+| `GET /api/claim-submissions/{submission_id}` | status + result |
+| `GET /api/cases/{case_id}/claim-submissions` | saved history (newest first) |
+
+### Start
+
+```json
+{
+  "sender_name": "Priya Raman",
+  "insurer_name": "Northwind Insurance",
+  "recipient_email": "claims@insurer.test",
+  "policy_number": "POL-12345",
+  "claim_number": "CLM-6789",
+  "policy_type": "renters",
+  "additional_notes": "Please copy our broker.",
+  "include_recovery_pdf": true,
+  "allow_resubmit": false,
+  "requested_by": "priya"
+}
+```
+
+Only `sender_name`, `insurer_name` and `recipient_email` are required.
+`case_ref` and `reviewed_record` are **built server-side** and cannot be supplied.
+
+- `202` new submission queued (returns `{ submission, draft_created:false, sent:false }`)
+- `200` a submission for this recipient is already running — returned as-is, **no new agent run**
+- `409 CLAIM_DUPLICATE` a draft already exists, or a previous attempt is uncertain.
+  `detail` carries `existing_submission_id`, `existing_status`, `gmail_draft_id`.
+  Resubmitting requires `allow_resubmit: true`.
+- `400 INVALID_RECIPIENT_EMAIL`, `409 PUBLIC_BASE_URL_NOT_CONFIGURED`,
+  `503 CLAIM_NOT_CONFIGURED` (missing key), `409 CREAO_MODE_MOCK`.
+
+### Poll
+
+```json
+{
+  "submission": {
+    "id": "clm_…", "case_id": "case_…", "status": "complete",
+    "agent_run_id": "creao-claim-1", "result_status": "draft_ready",
+    "recipient_email": "claims@insurer.test",
+    "subject": "Claim submission - case_… - Policy POL-12345",
+    "body_text": "Dear Northwind Insurance, …",
+    "attachment_filename": "recovery-inventory.pdf",
+    "gmail_draft_id": "draft_123", "gmail_message_id": "msg_123",
+    "missing_information": [], "warnings": [],
+    "pdf_supplied": true, "error": null,
+    "created_at": "…", "finished_at": "…"
+  },
+  "draft_created": true,
+  "sent": false
+}
+```
+
+`status`: `queued` → `running` → `complete` | `failed`.
+`result_status`: `draft_ready` | `needs_information` | `draft_failed`.
+
+### Result validation
+
+`claim-email-draft.json` must contain **exactly** these ten keys:
+
+`case_ref`, `status`, `recipient_email`, `subject`, `body_text`,
+`attachment_filename`, `gmail_draft_id`, `gmail_message_id`,
+`missing_information`, `warnings`
+
+Rejected (the submission is marked `failed`, nothing is retried):
+
+| Rule | Reason |
+|---|---|
+| extra or missing keys | the schema is fixed |
+| `case_ref` ≠ the case | the draft must describe this case |
+| `recipient_email` changed | it is copied byte-for-byte, never rewritten |
+| `status` not one of the three | contract |
+| `draft_ready` without a `gmail_draft_id` | no draft existed |
+| `needs_information` / `draft_failed` with a draft id | contradictory |
+| attachment reported when no PDF was supplied | invented attachment |
+| `missing_information` / `warnings` not string arrays | contract |
+
+### reviewed_record
+
+A JSON-serialized string with four sections:
+
+```json
+{ "case_ref": "case_…",
+  "inventory": [ { "item_id": "itm_…", "agent_item_id": "itm_001",
+                   "name": "Beige armchair",
+                   "estimated_value": { "value": 425.0, "confirmed": true, "confirmed_by": "priya" },
+                   "brand": { "value": "Renter-confirmed brand", "confirmed": true, "confirmed_by": "priya" },
+                   "condition": { "value": "rolled arms", "confirmed": false } } ],
+  "evidence_references": [ { "evidence_id": "ev_001", "upload_id": "upl_…", "filename": "room.jpg" } ],
+  "human_confirmations": [ { "target_type": "item", "item_id": "itm_…", "field": "estimated_value",
+                             "value": 425.0, "confirmed_by": "priya", "confirmed_at": "…" } ],
+  "unresolved_issues": [ { "kind": "question", "question_id": "q_001", "text": "…" } ] }
+```
+
+A field is `confirmed` **only** when a person recorded it (a revision) or the
+agent marked it in `user_confirmed_fields`. Agent observations stay
+`confirmed: false`. With no human input, `human_confirmations` is `[]` — never
+invented. Researcher candidates are **not** included.
+
+### Recovery PDF
+
+`include_recovery_pdf: true` (default) generates the existing recovery-record PDF
+and passes a **signed HTTPS URL** (`https://<REBUILD_PUBLIC_BASE_URL>/api/evidence/claims/{id}/pdf/public?exp=…&sig=…`).
+No localhost URLs or filesystem paths are ever sent. If `REBUILD_PUBLIC_BASE_URL`
+is not configured the request fails with `409 PUBLIC_BASE_URL_NOT_CONFIGURED`
+before any agent run starts. Set `include_recovery_pdf: false` to submit without
+an attachment (the agent then adds its "no attachment" warning).
+
+The PDF bytes are held on the submission in memory only; after a restart the URL
+404s, which is fine — the agent fetches it during the run.
+
+
+### Recovery PDF rules (v0.10.1)
+
+The PDF served to the Claim Assistant is the **same** generator used by
+`GET /api/cases/{id}/export.pdf`:
+
+- values are labelled **"Estimated item value"** — not a replacement-cost
+  determination, coverage decision or payout amount;
+- when nothing is valued the figure reads **"Not estimated"** — never `USD 0`;
+- unknown currency is printed bare, never defaulted to USD;
+- per-currency totals are kept separate and never summed across currencies;
+- a partial total says `(partial: N of M unvalued)`;
+- a **Human review record** section lists question answers (with reviewer),
+  finding resolutions and reasons, unresolved questions, and reviewers;
+- **Agent observations — not human-confirmed** lists the Investigator's own
+  observations separately from human decisions;
+- unverified Researcher candidates are never included.
+
+### Claim submissions in snapshots
+
+`GET /api/admin/export` includes `claim_submissions[]` with ids, statuses,
+`agent_run_id`, `result_status`, `gmail_draft_id`, `gmail_message_id`, subject,
+body, attachment filename, `missing_information`, `warnings`, `error` and
+timestamps. Import preserves them exactly, never calls CREAO or Gmail, and keeps
+duplicate protection live (a restored `draft_ready` still returns
+`409 CLAIM_DUPLICATE`). Older snapshots without the key remain valid; PDF bytes
+are never exported.
+
 ---
 
 ## 7. Comments, events and export

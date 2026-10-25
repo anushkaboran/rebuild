@@ -353,3 +353,134 @@ def test_imported_research_record_can_be_recovered(client, monkeypatch):
     assert item["revision"] == 2
     assert item["brand"] == "Renter-confirmed"
     assert item["currency"] is None
+
+
+# --------------------------------------------------------------------------- #
+# Claim submissions in snapshots
+# --------------------------------------------------------------------------- #
+CLAIM_ID = "clm_7c1f0a9b2d3e"
+GMAIL_DRAFT = "draft_abc123"
+
+
+def _with_claim(base: dict, **overrides) -> dict:
+    snapshot = copy.deepcopy(base)
+    submission = {
+        "id": CLAIM_ID,
+        "case_id": CASE_ID,
+        "status": "complete",
+        "mode": "live",
+        "app_id": "947ad3f0-04f6-4f81-b73a-50ff6b116bf0",
+        "agent_run_id": "creao-claim-1",
+        "thread_id": "thread-claim-1",
+        "result_status": "draft_ready",
+        "recipient_email": "claims@insurer.test",
+        "subject": "Claim submission - case_18b532045bc7",
+        "body_text": "Dear Northwind Insurance,\n\nPlease find our claim submission.",
+        "attachment_filename": "recovery-inventory.pdf",
+        "gmail_draft_id": GMAIL_DRAFT,
+        "gmail_message_id": "msg_abc123",
+        "missing_information": ["policy_number"],
+        "warnings": ["no policy number supplied"],
+        "error": None,
+        "pdf_supplied": True,
+        "pdf_filename": "recovery-inventory.pdf",
+        "requested_by": "priya",
+        "created_at": "2026-10-24T22:00:00+00:00",
+        "finished_at": "2026-10-24T22:01:00+00:00",
+    }
+    submission.update(overrides)
+    snapshot["claim_submissions"] = [submission]
+    return snapshot
+
+
+def test_claim_submission_round_trips_with_original_ids(client):
+    state_io.import_snapshot(_with_claim(_snapshot()))
+
+    stored = store.claim_submissions[CLAIM_ID]
+    assert stored.case_id == CASE_ID
+    assert stored.gmail_draft_id == GMAIL_DRAFT
+    assert stored.gmail_message_id == "msg_abc123"
+    assert stored.agent_run_id == "creao-claim-1"
+    assert stored.result_status == "draft_ready"
+    assert stored.missing_information == ["policy_number"]
+    assert stored.warnings == ["no policy number supplied"]
+    assert stored.created_at.year == 2026
+
+    exported = client.get("/api/admin/export").json()
+    assert exported["claim_submissions"][0]["id"] == CLAIM_ID
+    assert exported["claim_submissions"][0]["gmail_draft_id"] == GMAIL_DRAFT
+
+
+def test_restored_draft_still_blocks_duplicates(client, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "creao_mode", "live")
+    monkeypatch.setattr(settings, "creao_claim_api_key", "capi_claim")
+    monkeypatch.setattr(settings, "rebuild_public_base_url", "https://evidence.example")
+    state_io.import_snapshot(_with_claim(_snapshot()))
+
+    response = client.post(
+        f"/api/cases/{CASE_ID}/claim-submission",
+        json={"sender_name": "Priya", "insurer_name": "Northwind",
+              "recipient_email": "claims@insurer.test"},
+    )
+    assert response.status_code == 409
+    detail = response.json()["detail"]
+    assert detail["code"] == "CLAIM_DUPLICATE"
+    assert detail["gmail_draft_id"] == GMAIL_DRAFT
+    assert detail["existing_submission_id"] == CLAIM_ID
+
+
+def test_restored_uncertain_outcome_blocks_retry(client, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "creao_mode", "live")
+    monkeypatch.setattr(settings, "creao_claim_api_key", "capi_claim")
+    monkeypatch.setattr(settings, "rebuild_public_base_url", "https://evidence.example")
+    state_io.import_snapshot(
+        _with_claim(
+            _snapshot(), status="failed", result_status="draft_failed",
+            gmail_draft_id=None, gmail_message_id=None,
+            error="CREAO_TIMEOUT: no response",
+        )
+    )
+
+    response = client.post(
+        f"/api/cases/{CASE_ID}/claim-submission",
+        json={"sender_name": "Priya", "insurer_name": "Northwind",
+              "recipient_email": "claims@insurer.test"},
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "CLAIM_DUPLICATE"
+
+
+def test_legacy_snapshot_without_claim_section_still_imports(client):
+    legacy = copy.deepcopy(_snapshot())
+    legacy.pop("claim_submissions", None)
+
+    report = state_io.import_snapshot(legacy)
+    assert report["imported"]["cases"] == 1
+    assert store.claim_submissions == {}
+    assert "claim_submissions" in report["imported"]
+
+
+def test_claim_import_calls_neither_creao_nor_gmail(client, monkeypatch):
+    calls: list[str] = []
+
+    class Boom:
+        def __init__(self, *a, **k):
+            calls.append("creao")
+
+    monkeypatch.setattr("app.services.creao.CreaoAppClient", Boom)
+    state_io.import_snapshot(_with_claim(_snapshot()))
+    assert calls == []
+    assert store.claim_submissions[CLAIM_ID].gmail_draft_id == GMAIL_DRAFT
+
+
+def test_claim_import_is_idempotent(client):
+    snapshot = _with_claim(_snapshot())
+    state_io.import_snapshot(snapshot)
+    second = state_io.import_snapshot(snapshot, on_conflict="skip")
+
+    assert second["conflicts"] == []
+    assert len(store.claim_submissions) == 1

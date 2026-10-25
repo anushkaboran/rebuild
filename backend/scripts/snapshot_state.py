@@ -98,6 +98,7 @@ class Exporter:
             "cases": [], "uploads": [], "investigations": [], "items": [],
             "revisions": [], "comments": [], "findings": [], "questions": [],
             "decision_events": [], "research_runs": [], "research_candidates": [],
+            "claim_submissions": [],
             "warnings": [],
         }
 
@@ -147,6 +148,10 @@ class Exporter:
                 revisions = self.get(f"/api/items/{item['id']}/revisions") or []
                 snapshot["revisions"] += revisions
 
+            # Claim submissions (draft-only runs) — optional, v0.10.0+.
+            claims = self.get(f"/api/cases/{case_id}/claim-submissions") or []
+            snapshot["claim_submissions"] += claims
+
             # Research: canonical route first, case-scoped fallback.
             for item in items:
                 runs = self.get(f"/api/items/{item['id']}/research")
@@ -178,6 +183,7 @@ class Exporter:
             "Upload.stored_path is not exposed — copy backend/uploads/ separately if the "
             "evidence files are still needed.",
             "ResearchRun.input_snapshot (signed URLs) is intentionally excluded.",
+            "Claim submission PDF bytes are not exported (regenerated on demand).",
         ]
         return snapshot
 
@@ -199,6 +205,10 @@ def verify(path: str) -> int:
     for run in data.get("research_runs", []):
         if run["item_id"] not in item_ids:
             problems.append(f"research {run['id']} → unknown item")
+    submission_ids = {c["id"] for c in data.get("claim_submissions", [])}
+    for submission in data.get("claim_submissions", []):
+        if submission["case_id"] not in case_ids:
+            problems.append(f"claim submission {submission['id']} → unknown case")
     for candidate in data.get("research_candidates", []):
         if candidate["run_id"] not in run_ids:
             problems.append(f"candidate {candidate['id']} → unknown research run")
@@ -209,6 +219,12 @@ def verify(path: str) -> int:
         "case_ids": sorted(case_ids),
         "item_ids": sorted(item_ids),
         "research": {r["id"]: r.get("agent_run_id") for r in data.get("research_runs", [])},
+        "claim_submissions": sorted(submission_ids),
+        "claim_drafts": {
+            c["id"]: c.get("gmail_draft_id")
+            for c in data.get("claim_submissions", [])
+            if c.get("gmail_draft_id")
+        },
         "problems": problems,
         "warnings": data.get("warnings", []),
     }, indent=2))

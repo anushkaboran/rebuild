@@ -28,6 +28,7 @@ from typing import Any
 
 from ..models import (
     Case,
+    ClaimSubmission,
     Comment,
     DecisionEvent,
     EvidenceItem,
@@ -58,7 +59,9 @@ MODELS = {
     "questions": Question,
     "research_runs": ResearchRun,
     "research_candidates": ResearchCandidate,
-    # decision_events are not a pydantic model in the store parity set
+    # Claim drafts: ids, statuses, Gmail draft/message ids, warnings, timestamps.
+    # `payload` bytes are excluded from the model, so they are never exported.
+    "claim_submissions": ClaimSubmission,
 }
 
 STORE_ATTRS = {
@@ -72,6 +75,7 @@ STORE_ATTRS = {
     "questions": "questions",
     "research_runs": "research_runs",
     "research_candidates": "research_candidates",
+    "claim_submissions": "claim_submissions",
 }
 
 
@@ -112,6 +116,9 @@ def build_snapshot() -> dict[str, Any]:
             "research_runs": [r.model_dump(mode="json") for r in store.research_runs.values()],
             "research_candidates": [
                 c.model_dump(mode="json") for c in store.research_candidates.values()
+            ],
+            "claim_submissions": [
+                c.model_dump(mode="json") for c in store.claim_submissions.values()
             ],
             "warnings": [],
         }
@@ -221,6 +228,12 @@ def _check_integrity(parsed: dict[str, list]) -> None:
             problems.append(
                 f"research {run.id} references unknown item {run.item_id} — refusing to "
                 "rewrite item_ref"
+            )
+
+    for submission in parsed.get("claim_submissions", []):
+        if submission.case_id not in case_ids:
+            problems.append(
+                f"claim submission {submission.id} references unknown case {submission.case_id}"
             )
 
     for candidate in parsed["research_candidates"]:
@@ -398,6 +411,7 @@ def verify_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
         "case_ids": sorted(c.id for c in parsed["cases"]),
         "item_ids": sorted(i.id for i in parsed["items"]),
         "research_run_ids": sorted(r.id for r in parsed["research_runs"]),
+        "claim_submission_ids": sorted(c.id for c in parsed.get("claim_submissions", [])),
         "agent_run_ids": {
             r.id: r.agent_run_id for r in parsed["research_runs"] if r.agent_run_id
         },
