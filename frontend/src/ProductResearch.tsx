@@ -153,7 +153,22 @@ export default function ProductResearch({ itemId }: { itemId: string }) {
       {starting && <p role="status">Submitting research request…</p>}
       {error && <p role="alert">{error}</p>}
       {!loading && !error && !result && <p>No saved research for this item yet.</p>}
-      {result && <p role="status">Research status: {result.run.status}</p>}
+      {result && (
+        result.run.status === 'queued' || result.run.status === 'running'
+          ? <div className="research-progress" role="status">
+              <span className="research-spinner" aria-hidden="true" />
+              <div>
+                <strong>{result.run.status === 'queued'
+                  ? 'Your research is queued'
+                  : 'Looking for possible matches…'}</strong>
+                <p>Results will appear when research finishes.
+                  You can close this panel and return later.</p>
+              </div>
+            </div>
+          : <p role="status">{result.run.status === 'complete'
+              ? 'Research complete — review these suggestions.'
+              : 'Research could not be completed.'}</p>
+      )}
       {result?.run.status === 'failed' && (
         <p role="alert">
           {result.run.error || 'Research could not be completed.'}
@@ -161,8 +176,21 @@ export default function ProductResearch({ itemId }: { itemId: string }) {
         </p>
       )}
       {result?.run.status === 'complete' && (
-        <ResearchCandidates candidates={result.candidates}
-          limitations={result.run.limitations ?? []} />
+        <>
+          {Boolean(result.run.limitations?.length) && (
+            <aside className="research-caveats" aria-label="Research limitations">
+              <strong>Before comparing these suggestions</strong>
+              <p>Research has limitations. Review them before relying on a match.</p>
+              <details>
+                <summary>View limitations ({result.run.limitations?.length})</summary>
+                <ul>{result.run.limitations?.map((note, index) => (
+                  <li key={index}>{note}</li>
+                ))}</ul>
+              </details>
+            </aside>
+          )}
+          <ResearchCandidates candidates={result.candidates} />
+        </>
       )}
     </section>
   )
