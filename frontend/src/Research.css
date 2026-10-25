@@ -84,3 +84,28 @@
   color: #a22d13;
   overflow-wrap: anywhere;
 }
+
+.product-research form {
+  margin: 18px 0;
+}
+.product-research form label {
+  display: block;
+  color: #252538;
+  font-size: 13px;
+  font-weight: 650;
+}
+.product-research form input {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid #d9dbe5;
+  border-radius: 8px;
+  background: #fff;
+  color: #252538;
+}
+.product-research form .helper {
+  margin: 12px 0;
+  color: #626274;
+  line-height: 1.6;
+}
