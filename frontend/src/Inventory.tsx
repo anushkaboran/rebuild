@@ -1,3 +1,4 @@
+import ItemPhoto from './ItemPhoto'
 import ClaimSubmission from './ClaimSubmission'
 import ProductResearch from './ProductResearch'
 import UpdateInvestigation from './UpdateInvestigation'
@@ -396,7 +397,7 @@ export default function Inventory({ caseId, simulated = false, activeView = 'inv
                 >
                   <div className={`inventory-card-media${photo || sampleImage || source ? ' has-photo' : ''}`}>
                     <DisclosureTrigger className="inventory-image-trigger" aria-label={`${expanded ? 'Hide' : 'Show'} details for ${item.name}`}>
-                      {source ? <img src={source.url!} alt={source.description || source.filename} className="inventory-card-image" loading="lazy" /> : photo
+                      {source ? <ItemPhoto key={item.item_id + source.url} itemId={item.item_id} src={source.url!} alt={source.description || source.filename} /> : photo
                         ? <PhotoPreview file={photo} className="inventory-card-image" />
                         : sampleImage ? <img src={sampleImage.src} alt={sampleImage.alt} className="inventory-card-image" loading="lazy" decoding="async" />
                         : <span className="inventory-photo-placeholder"><InventoryIcon name="image" /><span>No photo attached</span></span>}
@@ -430,7 +431,7 @@ export default function Inventory({ caseId, simulated = false, activeView = 'inv
           {selected && records && <>
             <div className="inventory-modal-heading"><div><span className="inventory-modal-eyebrow">{isSample ? 'SAMPLE ITEM' : 'YOUR ITEM'} <i>·</i> {selected.room}</span><DialogTitle className="inventory-modal-title">{selected.name}</DialogTitle><DialogDescription className="inventory-modal-description">{caseId ? 'Review the saved record and its evidence. Corrections are saved to the backend.' : isSample ? 'Check the evidence, confirm details, and work through questions.' : 'An item you added manually. Confirm the details you know.'}</DialogDescription></div><DialogClose className="inventory-modal-close"><span aria-hidden="true">×</span><span className="inventory-sr-only">Close item</span></DialogClose></div>
             <div className={`inventory-modal-media${selectedPhoto || selectedSampleImage || selectedSourcePhoto ? ' has-photo' : ''}`}>
-              {selectedSourcePhoto ? <img src={selectedSourcePhoto.url!} alt={selectedSourcePhoto.description || selectedSourcePhoto.filename} /> : selectedPhoto ? <PhotoPreview file={selectedPhoto} />
+              {selectedSourcePhoto ? <ItemPhoto key={selected.item_id + selectedSourcePhoto.url} itemId={selected.item_id} src={selectedSourcePhoto.url!} alt={selectedSourcePhoto.description || selectedSourcePhoto.filename} controls /> : selectedPhoto ? <PhotoPreview file={selectedPhoto} />
                 : selectedSampleImage ? <img src={selectedSampleImage.src} alt={selectedSampleImage.alt} decoding="async" />
                 : <div className="inventory-photo-placeholder"><InventoryIcon name="image" /><span>Add a photo to bring this item into focus</span></div>}
             </div>
