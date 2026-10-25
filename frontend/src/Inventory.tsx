@@ -1,3 +1,7 @@
+import ClaimSubmission from './ClaimSubmission'
+import ProductResearch from './ProductResearch'
+import UpdateInvestigation from './UpdateInvestigation'
+import BackendReview from './BackendReview'
 import DownloadPdf from './DownloadPdf'
 import ItemCorrection from './ItemCorrection'
 import { useEffect, useRef, useState } from 'react'
@@ -135,8 +139,12 @@ export default function Inventory({ caseId, simulated = false, activeView = 'inv
       } = await response.json()
       if (!Array.isArray(data.items) || !Array.isArray(data.evidence)) throw new Error('Missing review records.')
       const backendId = (agentId: string, issueId: string) => {
-        const investigationId = issueId.split(':')[0]
-        return data.items.find(item => item.investigation_id === investigationId && item.agent_item_id === agentId)?.id ?? agentId
+        const scopeId = issueId.split(':')[0]
+        const matches = data.items.filter(item =>
+          item.agent_item_id === agentId &&
+          (scopeId === caseId || item.investigation_id === scopeId)
+        )
+        return matches.length === 1 ? matches[0].id : agentId
       }
       setBackendResult({
         items: data.items.map(item => ({ ...item, item_id: item.id, room: item.room ?? 'Unassigned room', supporting_evidence_ids: item.supporting_evidence_ids ?? [], user_confirmed_fields: item.user_confirmed_fields ?? [] })),
@@ -351,7 +359,11 @@ export default function Inventory({ caseId, simulated = false, activeView = 'inv
 
   return (
     <section className="inventory-workspace" aria-labelledby="inventory-title">
-      <div className="inventory-heading"><div><p className="eyebrow">{activeView === 'review' ? 'REVIEW' : 'INVENTORY'}</p><h1 id="inventory-title">{activeView === 'review' ? 'Review your items.' : 'Your recovery record.'}</h1></div>{caseId ? <div className="backend-toolbar"><button type="button" className="button-secondary" disabled={loading} onClick={() => void loadReview()}>{loading ? 'Loading…' : backendResult ? 'Refresh case inventory' : 'Open case inventory →'}</button><DownloadPdf caseId={caseId} /></div> : <button type="button" className="button-primary inventory-create-button" onClick={() => setCreating(true)}><span aria-hidden="true">＋</span> Create item</button>}</div>
+      <div className="inventory-heading"><div><p className="eyebrow">{activeView === 'review' ? 'REVIEW' : 'INVENTORY'}</p><h1 id="inventory-title">{activeView === 'review' ? 'Review your items.' : 'Your recovery record.'}</h1></div>{caseId ? <div className="backend-toolbar"><button type="button" className="button-secondary" disabled={loading} onClick={() => void loadReview()}>{loading ? 'Loading…' : backendResult ? 'Refresh case inventory' : 'Open case inventory →'}</button><DownloadPdf caseId={caseId} /><ClaimSubmission key={caseId} caseId={caseId} /></div> : <button type="button" className="button-primary inventory-create-button" onClick={() => setCreating(true)}><span aria-hidden="true">＋</span> Create item</button>}</div>
+
+      {caseId && backendResult && (
+        <UpdateInvestigation key={caseId} caseId={caseId} onComplete={loadReview} />
+      )}
 
       {!caseId && <div className="inventory-scope-tabs" aria-label="Inventory source"><button type="button" aria-pressed={!isSample} onClick={() => chooseScope('yours')}>Your items <span>{userItems.length}</span></button><button type="button" aria-pressed={isSample} onClick={() => chooseScope('sample')}>Sample inventory <span>8</span></button></div>}
 
@@ -458,14 +470,28 @@ export default function Inventory({ caseId, simulated = false, activeView = 'inv
                     {purchaseFields.map(renderField)}
                   </div>
                 </section>
+                {caseId && (
+                  <ProductResearch
+                    key={selected.item_id}
+                    itemId={selected.item_id}
+                  />
+                )}
+
               </div>
               <div className="inventory-detail-body inventory-evidence-panel"><div className="inventory-section-heading"><div><h3>Supporting evidence</h3><p>{caseId ? 'Evidence cited by this item. Unavailable or ambiguous links are not substituted.' : isSample ? 'Descriptions from the sample case. Original sample files aren’t included.' : 'Photos you selected for this item. No automated analysis has been performed.'}</p></div></div>{selected.supporting_evidence_ids.length === 0 && <p className="inventory-muted">No supporting evidence is linked to this item.</p>}{selected.supporting_evidence_ids.map(id => { const evidence = evidenceFor(id); return <article className="inventory-evidence-card" key={id}><div className="inventory-evidence-file"><span><InventoryIcon name="file" /></span><div><strong>{evidence?.filename ?? 'File unavailable'}</strong><small>{isSample ? 'Sample source description' : 'Selected photo'}</small></div></div>{!caseId && !isSample && photoFor(selected) && <PhotoPreview file={photoFor(selected)!} className="inventory-evidence-photo" />}{caseId && evidence?.url?.startsWith('/api/uploads/') && <>
                   {evidence.content_type?.startsWith('image/') && <img src={evidence.url} alt={evidence.description || evidence.filename} className="inventory-evidence-photo" loading="lazy" />}
                   <p><a href={evidence.url} target="_blank" rel="noreferrer">Open original evidence ↗</a></p>
                 </>}<p>{evidence?.description ?? 'No description is available for this source.'}</p></article> })}</div>
-              <div className="inventory-detail-body inventory-review-panel">{caseId || isSample ? <ReviewFindings readOnly={Boolean(caseId)} itemId={selected.item_id} findings={caseId ? records.findings.filter(f => !selected.investigation_id || f.finding_id.startsWith(selected.investigation_id + ':')) : records.findings} questions={caseId ? records.questions.filter(q => !selected.investigation_id || q.question_id.startsWith(selected.investigation_id + ':')) : records.questions} resolutions={resolutions} onResolve={(id, reason) => setResolutions(current => ({ ...current, [id]: reason }))} onUndo={undoResolution} /> : <div className="inventory-manual-review"><InventoryIcon name="check" /><h3>Let’s start with what you know.</h3><p>This item was added by you. Automatic review isn’t connected yet, so there are no generated questions or findings.</p><button type="button" className="button-primary" onClick={() => setPanel('details')}>Confirm item details<InventoryIcon name="arrow" /></button><small>{selected.user_confirmed_fields.length} fields confirmed · Saved in this tab</small></div>}</div>
+              <div className="inventory-detail-body inventory-review-panel">{caseId ? <BackendReview
+      caseId={caseId}
+      itemId={selected.item_id}
+      investigationId={undefined}
+      findings={records.findings}
+      questions={records.questions}
+      onSaved={loadReview}
+    /> : isSample ? <ReviewFindings readOnly={Boolean(caseId)} itemId={selected.item_id} findings={caseId ? records.findings.filter(f => !selected.investigation_id || f.finding_id.startsWith(selected.investigation_id + ':')) : records.findings} questions={caseId ? records.questions.filter(q => !selected.investigation_id || q.question_id.startsWith(selected.investigation_id + ':')) : records.questions} resolutions={resolutions} onResolve={(id, reason) => setResolutions(current => ({ ...current, [id]: reason }))} onUndo={undoResolution} /> : <div className="inventory-manual-review"><InventoryIcon name="check" /><h3>Let’s start with what you know.</h3><p>This item was added by you. Automatic review isn’t connected yet, so there are no generated questions or findings.</p><button type="button" className="button-primary" onClick={() => setPanel('details')}>Confirm item details<InventoryIcon name="arrow" /></button><small>{selected.user_confirmed_fields.length} fields confirmed · Saved in this tab</small></div>}</div>
             </TransitionPanel>
-            <div className="inventory-modal-footer"><InventoryIcon name="info" /><p>{caseId ? 'Use Edit this item to save corrections. Findings and questions are read-only.' : 'Changes stay in this browser tab and reset on refresh.'}</p><DialogClose className="button-secondary">Done for now</DialogClose></div>
+            <div className="inventory-modal-footer"><InventoryIcon name="info" /><p>{caseId ? 'Item corrections, answers, and finding decisions are saved to this case.' : 'Changes stay in this browser tab and reset on refresh.'}</p><DialogClose className="button-secondary">Done for now</DialogClose></div>
           </>}
         </DialogContent>
       </Dialog>

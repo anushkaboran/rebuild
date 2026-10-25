@@ -19,12 +19,14 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query, status
 
 from ..config import settings
 from ..deps import get_case_or_404
 from ..models import (
     CaseReview,
+    FindingResolutionRequest,
+    QuestionAnswerRequest,
     ReviewDecision,
     ReviewEvidence,
     ReviewFinding,
@@ -32,7 +34,7 @@ from ..models import (
     ReviewQuestion,
     ReviewStats,
 )
-from ..services import spacetime_db
+from ..services import review_decisions, spacetime_db
 from ..store import store
 
 logger = logging.getLogger(__name__)
@@ -102,6 +104,9 @@ def case_review(case_id: str, refresh: bool = Query(default=True)) -> CaseReview
             revision=item.revision,
             updated_by=item.updated_by,
             updated_at=item.updated_at,
+            reconciliation=item.reconciliation,
+            possible_match_item_id=item.possible_match_item_id,
+            agent_proposal=item.agent_proposal,
         )
         for item in items
     ]
@@ -114,6 +119,12 @@ def case_review(case_id: str, refresh: bool = Query(default=True)) -> CaseReview
         questions=questions,
         decisions=decisions,
         investigations=investigations,
+        question_decisions=[
+            d for d in store.list_decisions(case_id) if d.target_type == "question"
+        ],
+        finding_decisions=[
+            d for d in store.list_decisions(case_id) if d.target_type == "finding"
+        ],
         stats=_stats(case_id, items),
         source=source,
     )
@@ -143,7 +154,9 @@ def _evidence(uploads, investigations) -> list[ReviewEvidence]:
         meta = agent.get(upload.original_filename, {})
         out.append(
             ReviewEvidence(
-                evidence_id=meta.get("evidence_id"),
+                # Stable id assigned at upload time; payload metadata is only a
+                # fallback for rows created before ids were persisted.
+                evidence_id=upload.evidence_id or meta.get("evidence_id"),
                 upload_id=upload.id,
                 filename=upload.original_filename,
                 evidence_type="photo" if upload.kind.value == "photo" else "receipt",
@@ -199,3 +212,68 @@ def _stats(case_id: str, items) -> ReviewStats:
             default=max((i.updated_at for i in items), default=None),
         ),
     )
+
+
+# --------------------------------------------------------------------------- #
+# Decisions
+# --------------------------------------------------------------------------- #
+def _raise(exc: review_decisions.DecisionError) -> None:
+    detail = {"code": exc.code, "message": exc.message}
+    if isinstance(exc, review_decisions.DecisionConflict):
+        detail["current"] = exc.current
+    raise HTTPException(status_code=exc.status_code, detail=detail)
+
+
+@router.patch(
+    "/cases/{case_id}/questions/{question_ref}",
+    response_model=ReviewQuestion,
+    summary="Save, update or clear a human answer to an investigator question",
+    responses={
+        400: {"description": "Invalid answer (e.g. missing reviewer)"},
+        404: {"description": "Case or question not found"},
+        409: {"description": "Stale revision; `detail.current` holds the saved decision"},
+    },
+)
+def answer_question(
+    case_id: str, question_ref: str, body: QuestionAnswerRequest
+) -> ReviewQuestion:
+    get_case_or_404(case_id)
+    try:
+        applied = review_decisions.answer_question(
+            case_id=case_id,
+            ref=question_ref,
+            answer=body.answer,
+            reviewer=body.reviewer,
+            if_revision=body.if_revision,
+        )
+    except review_decisions.DecisionError as exc:
+        _raise(exc)
+    return ReviewQuestion(**applied.target.model_dump())
+
+
+@router.patch(
+    "/cases/{case_id}/findings/{finding_ref}",
+    response_model=ReviewFinding,
+    summary="Resolve an investigator finding",
+    responses={
+        400: {"description": "Invalid resolution (a rejection needs a reason)"},
+        404: {"description": "Case or finding not found"},
+        409: {"description": "Stale revision; `detail.current` holds the saved decision"},
+    },
+)
+def resolve_finding(
+    case_id: str, finding_ref: str, body: FindingResolutionRequest
+) -> ReviewFinding:
+    get_case_or_404(case_id)
+    try:
+        applied = review_decisions.resolve_finding(
+            case_id=case_id,
+            ref=finding_ref,
+            resolution=body.resolution,
+            reason=body.reason,
+            reviewer=body.reviewer,
+            if_revision=body.if_revision,
+        )
+    except review_decisions.DecisionError as exc:
+        _raise(exc)
+    return ReviewFinding(**applied.target.model_dump())

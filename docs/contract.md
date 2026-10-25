@@ -1,6 +1,6 @@
 # Rebuild API contract
 
-**Status:** v0.6.1 — owned by Person 3 (backend). URL-based evidence + recovery of already-completed CREAO runs.
+**Status:** v0.8.2 — owned by Person 3 (backend). URL-based evidence + recovery of already-completed CREAO runs.
 **Base URL (local):** `http://localhost:8000`
 **Machine-readable schema:** `GET /openapi.json` · interactive docs at `/docs`
 
@@ -667,6 +667,591 @@ Re-read the review endpoint and re-apply on top of it.
 
 ---
 
+## 6e. Review decisions — questions and findings
+
+Two write endpoints. Both bump a per-record `revision`, append to an audit trail,
+and never touch inventory items, `user_confirmed_fields` or receipt prices.
+
+### `PATCH /api/cases/{case_id}/questions/{question_ref}`
+
+`question_ref` accepts either the backend id (`inv_…:q_001`) or the agent id
+(`q_001`) — both are in the review payload.
+
+```json
+{ "answer": "Yes, mine — it was in the room.", "reviewer": "priya", "if_revision": 0 }
+```
+
+| Field | Notes |
+|---|---|
+| `answer` | string, or `null`/`""` to **clear** a saved answer |
+| `reviewer` | required when saving an answer; free text (see the auth note) |
+| `if_revision` | the `revision` you rendered; `0` for a never-answered question |
+
+`200` → the updated question:
+
+```json
+{
+  "id": "inv_b58112068a26:q_001", "question_id": "q_001",
+  "item_id": "itm_001",
+  "question": "Is the brown armchair yours and was it in the room when the water entered?",
+  "reason": "Ownership affects the claim.",
+  "evidence_ids": ["ev_001", "ev_002"],
+  "status": "answered",
+  "resolution_reason": null,
+  "answer": "Yes, mine — it was in the room.",
+  "answered_by": "priya",
+  "answered_at": "2026-10-24T19:40:02.114Z",
+  "revision": 1
+}
+```
+
+Clearing (`answer: null`) returns `status: "open"`, `answer: null`,
+`answered_by: null`, `answered_at: null` and `revision` incremented — a question
+is only `answered` while an answer is actually stored. The agent's `question`
+and `reason` text are never rewritten.
+
+### `PATCH /api/cases/{case_id}/findings/{finding_ref}`
+
+`finding_ref` accepts the backend id or `fnd_001`.
+
+```json
+{ "resolution": "confirmed", "reason": "Second photo shows the same chair.",
+  "reviewer": "priya", "if_revision": 0 }
+```
+
+| Field | Notes |
+|---|---|
+| `resolution` | `confirmed` \| `rejected` \| `needs_more_evidence` \| `unresolved` |
+| `reason` | **required when `resolution` is `rejected`** |
+| `reviewer` | required |
+| `if_revision` | the `revision` you rendered |
+
+`200` → the updated finding, with the agent's `finding_id`, `finding_type`,
+`explanation`, `item_ids` and `evidence_ids` unchanged, plus `resolution`,
+`resolution_reason`, `resolved_by`, `resolved_at`, `revision`.
+
+### Errors
+
+```jsonc
+// 400 — rejection without a reason, or a missing reviewer
+{ "detail": { "code": "REASON_REQUIRED",
+              "message": "A reason is required when rejecting a finding." } }
+
+// 404 — case, question or finding not in this case
+{ "detail": { "code": "QUESTION_NOT_FOUND",
+              "message": "Question 'q_999' was not found in case 'case_…'." } }
+
+// 409 — stale revision; `current` is the saved decision to reconcile against
+{ "detail": {
+    "code": "REVISION_CONFLICT",
+    "message": "Question 'q_001' is at revision 2, not 1.",
+    "current": { "id": "inv_…:q_001", "answer": "Yes, mine.", "revision": 2, "…": "…" } } }
+```
+
+Codes: `REASON_REQUIRED`, `REVIEWER_REQUIRED`, `QUESTION_NOT_FOUND`,
+`FINDING_NOT_FOUND`, `REVISION_CONFLICT`.
+
+Re-submitting the **same** `if_revision` twice is a conflict, not a silent
+double-apply: the second call returns `409` with the already-saved decision.
+
+### Audit trail
+
+Every accepted change appends a `DecisionEvent`:
+
+```json
+{ "id": "dec_…", "case_id": "case_…", "target_type": "question",
+  "target_id": "inv_…:q_001", "agent_ref": "q_001", "revision": 1,
+  "value": "Yes, mine — it was in the room.", "reviewer": "priya",
+  "note": null, "created_at": "2026-10-24T19:40:02.114Z" }
+```
+
+### Reading decisions back
+
+`GET /api/cases/{case_id}/review` now embeds the decision on each record **and**
+returns two audit arrays:
+
+| Location | Links to the source by |
+|---|---|
+| `questions[].answer / answered_by / answered_at / revision / status` | `questions[].id` (or `question_id`) |
+| `findings[].resolution / resolution_reason / resolved_by / resolved_at / revision` | `findings[].id` (or `finding_id`) |
+| `question_decisions[]` / `finding_decisions[]` | `target_id` (backend id) and `agent_ref` (`q_001` / `fnd_001`) |
+| `decisions[]` (unchanged) | inventory items: `item_id` / `agent_item_id` |
+
+`decisions[]` remains **item** decisions only (PATCH /api/items/{id}); the two new
+arrays cover questions and findings. All previous top-level fields are unchanged.
+
+> **Identity:** `reviewer` / `answered_by` / `resolved_by` are client-supplied
+> strings. They are **not authenticated identities** — there is no auth layer.
+> Treat them as display names, and do not rely on them for authorization.
+
+---
+
+## 6f. Follow-up investigations
+
+Starting a second investigation for a case (`POST /api/cases/{id}/investigations`)
+now reuses stable evidence IDs, sends saved answers to the agent, and reconciles
+the new inventory into the existing one instead of duplicating it.
+
+### What the agent receives
+
+`inputs` keeps every existing field and adds one:
+
+| Field | Type | Notes |
+|---|---|---|
+| `review_answers` | **JSON string** | saved human answers; `[]` when nothing is answered |
+
+```json
+"[{\"question_id\":\"q_001\",\"answer\":\"Yes, mine.\",\"answered_by\":\"priya\"}]"
+```
+
+**Exactly three keys** — the Investigator v1.3.1 contract. The question text,
+`item_id` and `answered_at` are **not** sent; they stay in SpacetimeDB on the
+question row and in `decision_event`, so the review API and the audit trail keep
+them.
+
+- unanswered questions are **omitted**;
+- an answer is context for the agent and is **never** emitted inside
+  `confirmed_items` — an answer does not confirm an inventory field;
+- `confirmed_items`, `previous_result` and the evidence arrays are unchanged.
+
+> ✅ **Confirmed** by Person 2 for Investigator **v1.3.1**: the agent accepts
+> `review_answers` as JSON text, serialized as a string, with exactly
+> `question_id`, `answer`, `answered_by`. Verified by
+> `tests/test_followup.py::test_review_answers_payload_matches_agent_contract_exactly`.
+
+### Evidence IDs are stable
+
+Each upload gets an `evidence_id` (`ev_001`…) **once**, at first use, and it is
+persisted. Follow-up runs reuse it; a newly uploaded file takes the next free
+number. Existing IDs are never renumbered, and a result that references an
+unknown ID is rejected (`CREAO_INVALID_RESULT`) rather than being mapped onto
+some other file.
+
+### Item reconciliation
+
+| `reconciliation` | Meaning |
+|---|---|
+| `new` | genuinely new proposal from this run |
+| `matched` | reconciled with an existing belonging; **backend `id` preserved** |
+| `identity_conflict` | the agent changed the item id but name + shared evidence suggest the same object — **flagged, never merged** |
+
+Additional item fields: `possible_match_item_id` (for conflicts) and
+`agent_proposal` (the latest AI proposal when a human already decided the row).
+
+Rules:
+
+- matching is by `agent_item_id` within the case, so a retry or a follow-up can
+  never create a second row for the same belonging;
+- an item a human touched (status change, revision > 1, confirmed fields) is
+  **never overwritten** — the incoming values go to `agent_proposal`;
+- an untouchted item is refreshed in place and keeps its id and revision;
+- a different object with a similar name stays a separate row; only
+  name **and** a shared evidence reference produce an `identity_conflict` flag;
+- findings and questions are matched on `(case, finding_id/question_id)`, so
+  their agent text updates while answers, resolutions, reviewers, timestamps,
+  revisions and history survive.
+
+### Investigation metadata
+
+```json
+{
+  "follow_up": true,
+  "review_answers_sent": 1,
+  "items_created": 2,
+  "items_reconciled": 1,
+  "items_flagged": 1,
+  "status": "complete"
+}
+```
+
+`follow_up` is true whenever the case already had a completed investigation —
+independent of whether a `previous_result` URL could be built.
+
+### Frontend fields on review items
+
+`GET /api/cases/{id}/review` adds, per item: `reconciliation`,
+`possible_match_item_id`, `agent_proposal`. Everything previously returned is
+unchanged, so existing UI code keeps working.
+
+---
+
+## 6g. Researcher — Rebuild Product Researcher (confirmed contract)
+
+A second, independent app-scoped CREAO agent (App ID
+`a7260cbc-8253-4fa7-88d3-c644267e3221`) with its own credential
+(`CREAO_RESEARCH_API_KEY`). The Investigator's App ID and credential are never
+used for research, and vice versa.
+
+Research is **advisory**. Candidates live in separate records, are always
+`unverified_possible_match`, and never modify an item's brand, model,
+purchase_price, purchase_date, currency, estimated_value, confirmed fields or
+review status.
+
+### Routes
+
+| Route | Purpose |
+|---|---|
+| `POST /api/items/{item_id}/research` | start (or rejoin) research |
+| `GET /api/research/{research_id}` | status + candidates + queries + limitations |
+| `GET /api/items/{item_id}/research` | saved research history (newest first) |
+
+Case-scoped aliases remain for compatibility:
+`POST /api/cases/{c}/items/{i}/research`, `GET /api/cases/{c}/items/{i}/research/{run}`,
+`GET /api/cases/{c}/items/{i}/research`, `GET /api/cases/{c}/research/{run}/candidates`.
+
+### Start
+
+```json
+{ "region_currency": "USD", "requested_by": "priya" }
+```
+
+`region_currency` is **optional and explicit** — the backend never infers a
+region or currency.
+
+`202 Accepted` (new run):
+
+```json
+{
+  "id": "rsch_9f21c0a7b3d4", "case_id": "case_…", "item_id": "itm_…",
+  "status": "queued", "mode": "live",
+  "app_id": "a7260cbc-8253-4fa7-88d3-c644267e3221",
+  "region_currency": "USD", "agent_run_id": null,
+  "candidate_ids": [], "queries_run": [], "limitations": []
+}
+```
+
+`200 OK` with the **existing run** when that item already has one queued or
+running — a duplicate click never starts a second paid run.
+
+### Poll
+
+```json
+{
+  "run": {
+    "id": "rsch_…", "status": "complete", "agent_run_id": "creao-run-…",
+    "thread_id": "…", "error": null, "region_currency": "USD",
+    "candidates_valid": 1, "candidate_ids": ["rc_…"],
+    "queries_run": ["strandmon wing chair"],
+    "limitations": ["Prices shown are retail listings, not purchase prices."],
+    "input_summary": { "item_ref": "itm_…", "visible_observations": "…",
+                       "room_photo_upload_ids": ["upl_…"], "region_currency": "USD" }
+  },
+  "candidates": [
+    {
+      "id": "rc_…", "candidate_id": "cand_001",
+      "run_id": "rsch_…", "case_id": "case_…", "item_id": "itm_…",
+      "brand": "IKEA", "model": "STRANDMON",
+      "product_name": "STRANDMON wing chair",
+      "product_url": "https://www.ikea.com/us/en/p/strandmon-wing-chair",
+      "matching_features": ["wing back", "deep brown upholstery"],
+      "differing_features": ["leg colour differs"],
+      "missing_verification": "Measurements not confirmed against the photo.",
+      "price_as_displayed": "$349.00", "currency": "USD",
+      "source_accessed_at": "2026-10-24T21:00:00Z",
+      "status": "unverified_possible_match", "unverified": true
+    }
+  ]
+}
+```
+
+Statuses: `queued` → `running` → `complete` | `failed`. On failure `error` carries
+the code and message (e.g. `RESEARCH_INVALID_RESULT: item_ref mismatch…`).
+
+`signed evidence URLs are never returned` — only `room_photo_upload_ids` inside
+`input_summary`. The full `input_snapshot` is stored server-side for audit.
+
+### Recovery and diagnostics
+
+A completed CREAO run can be re-imported without starting a new run:
+
+```http
+POST /api/research/{research_id}/recover
+{ "creao_run_id": "11626040-0ac3-44db-84cd-59c6f22279cc" }
+```
+
+`200` → `{ run, candidates, source, already_recovered }`. The backend record is
+marked `complete` only after the artifact validates **and** (with
+`STORE_BACKEND=spacetime`) persists. Candidates are deterministic per run, so a
+repeated recovery never duplicates them.
+
+`GET /api/research/{research_id}/diagnostics` returns a **sanitized** view of the
+CREAO run's output structure — status, `result` field names, and one row per
+artifact with `title`, `type`, `has_url`, `bytes`, `json`, `keys`, `error`.
+It never contains URLs, headers or credentials.
+
+### Artifact errors (coded)
+
+| Code | Meaning |
+|---|---|
+| `RESEARCH_NO_ARTIFACTS` | the run response had no artifact metadata at all |
+| `RESEARCH_ARTIFACT_NOT_FOUND` | artifacts exist, none is a candidates document |
+| `RESEARCH_ARTIFACT_AUTH` | the artifact endpoint rejected the credential (401/403) |
+| `RESEARCH_ARTIFACT_DOWNLOAD` | download/redirect failure, or empty body |
+| `RESEARCH_INVALID_JSON` | a candidate document was found but is not JSON |
+| `RESEARCH_INVALID_RESULT` | JSON found but fails the contract (item_ref, count, status, URL) |
+| `RESEARCH_PERSIST_FAILED` | validated, but SpacetimeDB persistence failed |
+
+**Artifact discovery does not depend on the title.** Every artifact the run
+returns is probed — `result.artifacts`, `result.outputs`, `result.files`,
+`result.attachments` — and the first body that parses as JSON *and* matches
+`{item_ref, candidates}` wins. A title like `"Outputs"` with the file name only in
+the artifact `id` therefore still resolves.
+
+### Agent inputs (built server-side)
+
+| Field | Type | Source |
+|---|---|---|
+| `item_ref` | string | backend item id |
+| `visible_observations` | string \| null | the Investigator's observations |
+| `distinguishing_features` | string[] | documented features only (never invented) |
+| `evidence_context` | **JSON string** | evidence IDs, descriptions, attributed human corrections |
+| `room_photos` | string[] | HTTPS URLs of supporting photographs |
+| `region_currency` | string | present only when supplied explicitly |
+
+### Output validation
+
+`research-candidates.json` must be `{item_ref, candidates[], queries_run[], limitations[]}`.
+The run **fails** (never fabricates) when:
+
+1. `item_ref` ≠ the requested backend item id;
+2. more than **3** candidates;
+3. any candidate `status` ≠ `"unverified_possible_match"`;
+4. a `product_url` is present but not `http(s)`;
+5. the document is malformed or an artifact is unreadable.
+
+An **empty** `candidates` array is valid and means "no matches". Missing values
+stay `null`. Re-importing the same run is idempotent (candidate ids are
+deterministic).
+
+**Shapes preserved verbatim** (verified against the real run
+`11626040-0ac3-44db-84cd-59c6f22279cc`):
+
+| Field | Actual shape |
+|---|---|
+| `matching_features` / `differing_features` | arrays of strings |
+| `missing_verification` | **array** of strings (not a single string) |
+| `queries_run` | array of **objects** `{"query": "...", "tool": "web_search" \| "web_fetch"}` |
+| `currency` | `null` when the agent could not determine it — never defaulted |
+| `price_as_displayed` | string exactly as the page rendered it (`"€ 349"`, `"from $2,250.00"`) |
+| `source_accessed_at` | ISO timestamp as returned — never corrected |
+
+`queries_run` entries keep their object form; they are not stringified.
+
+
+---
+
+## 6h. Admin diagnostic — does the signed evidence URL work?
+
+```
+GET /api/admin/evidence/{upload_id}/check
+X-Admin-Token: $ADMIN_TOKEN
+```
+
+Answers one question: *if the Agent fetched this upload's signed public URL right
+now, would it get the image?*
+
+- **Requires `ADMIN_TOKEN`.** With the token unset the route returns `503
+  ADMIN_TOKEN_NOT_CONFIGURED` — there is **no loopback bypass**, because the
+  server is publicly exposed through ngrok.
+- Accepts **only an upload id**. The caller cannot supply a URL, so there is no
+  SSRF surface from user input.
+- Mints a **fresh** signed URL with the running process's key, fetches it back
+  through `REBUILD_PUBLIC_BASE_URL` (https required unless
+  `CREAO_ALLOW_PRIVATE_EVIDENCE_HOSTS=true` for tests), follows at most two
+  redirects **to the same host only**, and enforces
+  `ADMIN_CHECK_TIMEOUT_SECONDS` (10 s) and `ADMIN_CHECK_MAX_BYTES` (25 MiB).
+- Never returns, logs or echoes the URL, query string, signing key or headers.
+- Does not modify evidence, inventory or case state, and never calls CREAO.
+
+### Success
+
+```json
+{ "upload_id": "upl_173230835194", "http_status": 200,
+  "content_type": "image/png", "byte_count": 37170,
+  "valid_png_signature": true }
+```
+
+### Fetch problems (HTTP 200, diagnostic body)
+
+The endpoint itself succeeded; the public URL did not.
+
+| `error_code` | Meaning |
+|---|---|
+| `PUBLIC_URL_HTTP_ERROR` | the origin answered 4xx/5xx (status is in `http_status`) |
+| `FETCH_TIMEOUT` | no answer within the configured timeout |
+| `REDIRECT_NOT_ALLOWED` | it redirected to a different host |
+| `REDIRECT_LIMIT` | more than two same-host redirects |
+| `RESPONSE_TOO_LARGE` | body exceeded `ADMIN_CHECK_MAX_BYTES` |
+| `FETCH_FAILED` | connection error (details deliberately withheld) |
+
+### Local failures (HTTP 4xx)
+
+| Status | `code` | Meaning |
+|---|---|---|
+| 401 | `ADMIN_TOKEN_INVALID` | missing or wrong token |
+| 404 | `UPLOAD_NOT_FOUND` | unknown upload id |
+| 404 | `EVIDENCE_FILE_MISSING` | no file on disk for this upload |
+| 409 | `PUBLIC_BASE_URL_NOT_CONFIGURED` / `_INVALID` / `_INSECURE` / `_NOT_PUBLIC` | bad public base |
+| 503 | `ADMIN_TOKEN_NOT_CONFIGURED` | `ADMIN_TOKEN` unset |
+
+
+---
+
+## 6i. Claim Submission Assistant (Gmail DRAFT only)
+
+Third app-scoped agent (App ID `947ad3f0-04f6-4f81-b73a-50ff6b116bf0`), own
+credential `CREAO_CLAIM_API_KEY`. The Investigator and Researcher configurations
+are unchanged.
+
+**The backend never sends email and never touches Gmail.** The agent creates one
+*unsent* draft; a submission is only `draft_ready` when the agent reports a real
+`gmail_draft_id`.
+
+### Routes
+
+| Route | Purpose |
+|---|---|
+| `POST /api/cases/{case_id}/claim-submission` | prepare a draft |
+| `GET /api/claim-submissions/{submission_id}` | status + result |
+| `GET /api/cases/{case_id}/claim-submissions` | saved history (newest first) |
+
+### Start
+
+```json
+{
+  "sender_name": "Priya Raman",
+  "insurer_name": "Northwind Insurance",
+  "recipient_email": "claims@insurer.test",
+  "policy_number": "POL-12345",
+  "claim_number": "CLM-6789",
+  "policy_type": "renters",
+  "additional_notes": "Please copy our broker.",
+  "include_recovery_pdf": true,
+  "allow_resubmit": false,
+  "requested_by": "priya"
+}
+```
+
+Only `sender_name`, `insurer_name` and `recipient_email` are required.
+`case_ref` and `reviewed_record` are **built server-side** and cannot be supplied.
+
+- `202` new submission queued (returns `{ submission, draft_created:false, sent:false }`)
+- `200` a submission for this recipient is already running — returned as-is, **no new agent run**
+- `409 CLAIM_DUPLICATE` a draft already exists, or a previous attempt is uncertain.
+  `detail` carries `existing_submission_id`, `existing_status`, `gmail_draft_id`.
+  Resubmitting requires `allow_resubmit: true`.
+- `400 INVALID_RECIPIENT_EMAIL`, `409 PUBLIC_BASE_URL_NOT_CONFIGURED`,
+  `503 CLAIM_NOT_CONFIGURED` (missing key), `409 CREAO_MODE_MOCK`.
+
+### Poll
+
+```json
+{
+  "submission": {
+    "id": "clm_…", "case_id": "case_…", "status": "complete",
+    "agent_run_id": "creao-claim-1", "result_status": "draft_ready",
+    "recipient_email": "claims@insurer.test",
+    "subject": "Claim submission - case_… - Policy POL-12345",
+    "body_text": "Dear Northwind Insurance, …",
+    "attachment_filename": "recovery-inventory.pdf",
+    "gmail_draft_id": "draft_123", "gmail_message_id": "msg_123",
+    "missing_information": [], "warnings": [],
+    "pdf_supplied": true, "error": null,
+    "created_at": "…", "finished_at": "…"
+  },
+  "draft_created": true,
+  "sent": false
+}
+```
+
+`status`: `queued` → `running` → `complete` | `failed`.
+`result_status`: `draft_ready` | `needs_information` | `draft_failed`.
+
+### Result validation
+
+`claim-email-draft.json` must contain **exactly** these ten keys:
+
+`case_ref`, `status`, `recipient_email`, `subject`, `body_text`,
+`attachment_filename`, `gmail_draft_id`, `gmail_message_id`,
+`missing_information`, `warnings`
+
+Rejected (the submission is marked `failed`, nothing is retried):
+
+| Rule | Reason |
+|---|---|
+| extra or missing keys | the schema is fixed |
+| `case_ref` ≠ the case | the draft must describe this case |
+| `recipient_email` changed | it is copied byte-for-byte, never rewritten |
+| `status` not one of the three | contract |
+| `draft_ready` without a `gmail_draft_id` | no draft existed |
+| `needs_information` / `draft_failed` with a draft id | contradictory |
+| attachment reported when no PDF was supplied | invented attachment |
+| `missing_information` / `warnings` not string arrays | contract |
+
+### reviewed_record
+
+A JSON-serialized string with four sections:
+
+```json
+{ "case_ref": "case_…",
+  "inventory": [ { "item_id": "itm_…", "agent_item_id": "itm_001",
+                   "name": "Beige armchair",
+                   "estimated_value": { "value": 425.0, "confirmed": true, "confirmed_by": "priya" },
+                   "brand": { "value": "Renter-confirmed brand", "confirmed": true, "confirmed_by": "priya" },
+                   "condition": { "value": "rolled arms", "confirmed": false } } ],
+  "evidence_references": [ { "evidence_id": "ev_001", "upload_id": "upl_…", "filename": "room.jpg" } ],
+  "human_confirmations": [ { "target_type": "item", "item_id": "itm_…", "field": "estimated_value",
+                             "value": 425.0, "confirmed_by": "priya", "confirmed_at": "…" } ],
+  "unresolved_issues": [ { "kind": "question", "question_id": "q_001", "text": "…" } ] }
+```
+
+A field is `confirmed` **only** when a person recorded it (a revision) or the
+agent marked it in `user_confirmed_fields`. Agent observations stay
+`confirmed: false`. With no human input, `human_confirmations` is `[]` — never
+invented. Researcher candidates are **not** included.
+
+### Recovery PDF
+
+`include_recovery_pdf: true` (default) generates the existing recovery-record PDF
+and passes a **signed HTTPS URL** (`https://<REBUILD_PUBLIC_BASE_URL>/api/evidence/claims/{id}/pdf/public?exp=…&sig=…`).
+No localhost URLs or filesystem paths are ever sent. If `REBUILD_PUBLIC_BASE_URL`
+is not configured the request fails with `409 PUBLIC_BASE_URL_NOT_CONFIGURED`
+before any agent run starts. Set `include_recovery_pdf: false` to submit without
+an attachment (the agent then adds its "no attachment" warning).
+
+The PDF bytes are held on the submission in memory only; after a restart the URL
+404s, which is fine — the agent fetches it during the run.
+
+
+### Recovery PDF rules (v0.10.1)
+
+The PDF served to the Claim Assistant is the **same** generator used by
+`GET /api/cases/{id}/export.pdf`:
+
+- values are labelled **"Estimated item value"** — not a replacement-cost
+  determination, coverage decision or payout amount;
+- when nothing is valued the figure reads **"Not estimated"** — never `USD 0`;
+- unknown currency is printed bare, never defaulted to USD;
+- per-currency totals are kept separate and never summed across currencies;
+- a partial total says `(partial: N of M unvalued)`;
+- a **Human review record** section lists question answers (with reviewer),
+  finding resolutions and reasons, unresolved questions, and reviewers;
+- **Agent observations — not human-confirmed** lists the Investigator's own
+  observations separately from human decisions;
+- unverified Researcher candidates are never included.
+
+### Claim submissions in snapshots
+
+`GET /api/admin/export` includes `claim_submissions[]` with ids, statuses,
+`agent_run_id`, `result_status`, `gmail_draft_id`, `gmail_message_id`, subject,
+body, attachment filename, `missing_information`, `warnings`, `error` and
+timestamps. Import preserves them exactly, never calls CREAO or Gmail, and keeps
+duplicate protection live (a restored `draft_ready` still returns
+`409 CLAIM_DUPLICATE`). Older snapshots without the key remain valid; PDF bytes
+are never exported.
+
+---
+
 ## 7. Comments, events and export
 
 ### `GET /api/cases/{case_id}/comments` → `Comment[]`
@@ -810,6 +1395,13 @@ which is normalised to `unknown`).
 
 | Version | Change |
 |---|---|
+| 0.8.2 | Preserve the real document's shapes: `missing_verification` stays an array, `queries_run` keeps its `{query, tool}` objects, null currency untouched. Regression test uses the live `research-candidates.json` byte-for-byte. |
+| 0.8.1 | Artifact retrieval no longer trusts the artifact title (probes every artifact container and validates by content); `POST /api/research/{id}/recover` re-imports a completed CREAO run without a new run; `/diagnostics` reports the sanitized run structure; coded artifact errors. |
+| 0.8.0 | Researcher aligned to Person 1's confirmed contract: canonical `/api/items/{id}/research` + `/api/research/{id}` routes, explicit `region_currency`, exact input keys, strict `research-candidates.json` validation (max 3, fixed status, item_ref match), active-run dedupe, redacted input snapshot. |
+| 0.7.0 | Researcher agent integration: separate `CREAO_RESEARCHER_API_KEY`/App ID, async research runs per item, `research-candidates.json` validation, unverified candidates isolated from inventory, persisted in SpacetimeDB. Also made `brand`/`model`/`purchase_date`/`purchase_price` human-correctable. |
+| 0.6.4 | `review_answers` narrowed to the exact v1.3.1 contract (`question_id`, `answer`, `answered_by` as a JSON string); saved timestamps/history still stored in SpacetimeDB. |
+| 0.6.3 | Follow-up investigations: `review_answers` JSON-string input, stable per-upload `evidence_id`, case-level item reconciliation (`new`/`matched`/`identity_conflict`), findings/questions matched by agent id so human decisions survive, plus `follow_up` / `items_*` counters. |
+| 0.6.2 | Question answers (`PATCH /api/cases/{id}/questions/{q}`) and finding resolutions (`PATCH /api/cases/{id}/findings/{f}`) with per-record revisions, 400/404/409 handling, an append-only `decision_event` audit trail, persistence in SpacetimeDB and live broadcast. Review responses now embed answers/resolutions. |
 | 0.6.1 | `GET /api/cases/{id}/review`: agent fields (brand, model, purchase_date, purchase_price, nullable currency, location_in_image, visible_observations, user_confirmed_fields), findings, questions and decisions, with both backend and agent ids. Nullable currency no longer defaulted to USD; `purchase_price` never folded into `estimated_value`. |
 | 0.5 | `POST /api/creao/recover` imports an already-completed CREAO run without starting a new one: shared import pipeline, validation-before-write, idempotent retries, human corrections preserved, case/upload restoration from supplied metadata + disk. |
 | 0.4 | URL-based evidence: `room_photos`/`receipt_files` are arrays of short-lived signed HTTPS URLs served by this backend; JSON-string `evidence_manifest`/`confirmed_items`; `previous_result` omitted on first runs; signed public evidence routes; pre-flight URL reachability check; evidence-ID validation against the IDs actually sent. |

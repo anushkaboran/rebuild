@@ -128,6 +128,7 @@ def test_full_run_over_the_wire(wire_client):
         "receipt_files",
         "evidence_manifest",
         "confirmed_items",
+        "review_answers",
     }, "first run must not include previous_result"
     assert create["inputs"]["room_name"] == "living room"
     assert create["inputs"]["case_description"].startswith("Post-flood renter claim")

@@ -24,7 +24,9 @@ from . import __version__
 from .config import settings
 from .services import spacetime_db
 from .routers import (
+    admin,
     cases,
+    claims,
     demo,
     evidence,
     evidence_public,
@@ -32,6 +34,7 @@ from .routers import (
     health,
     investigations,
     recovery,
+    research,
     review,
     uploads,
 )
@@ -101,7 +104,7 @@ def create_app() -> FastAPI:
 
     # Every route lives under /api except the docs/openapi UI.
     for module in (
-        health, cases, uploads, investigations, evidence, evidence_public, recovery, review, exports, demo
+        health, admin, cases, claims, uploads, investigations, evidence, evidence_public, recovery, research, review, exports, demo
     ):
         app.include_router(module.router)
 

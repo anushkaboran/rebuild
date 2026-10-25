@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, File, Form, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 
 from ..deps import get_case_or_404, get_upload_or_404
@@ -59,5 +59,17 @@ def get_upload(upload_id: str) -> Upload:
 @router.get("/uploads/{upload_id}/file", summary="Serve the uploaded file")
 def get_upload_file(upload_id: str) -> FileResponse:
     upload = get_upload_or_404(upload_id)
-    path = storage.path_for(upload.stored_path)
-    return FileResponse(path, media_type=upload.content_type, filename=upload.original_filename)
+    path = storage.resolve_upload_path(upload)
+    if path is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "EVIDENCE_FILE_MISSING",
+                "message": "The stored file for this upload is not present on disk.",
+            },
+        )
+    return FileResponse(
+        path,
+        media_type=upload.content_type or storage.guessed_content_type(path),
+        filename=upload.original_filename,
+    )

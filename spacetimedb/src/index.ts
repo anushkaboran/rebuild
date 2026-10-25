@@ -48,6 +48,7 @@ const spacetimedb = schema({
       size_bytes: t.u64(),
       sha256: t.string(),
       uploaded_by: t.string(),
+      evidence_id: t.string(),
       url: t.string(),
       stored_path: t.string(),
       created_at: t.string(),
@@ -71,6 +72,11 @@ const spacetimedb = schema({
       summary: t.string(),
       error: t.string(),
       recovered: t.bool(),
+      follow_up: t.bool(),
+      review_answers_sent: t.u64(),
+      items_created: t.u64(),
+      items_reconciled: t.u64(),
+      items_flagged: t.u64(),
       item_ids_json: t.string(),
       requested_by: t.string(),
       created_at: t.string(),
@@ -104,6 +110,9 @@ const spacetimedb = schema({
       location_in_image: t.string(),
       visible_observations: t.string(),
       user_confirmed_fields_json: t.string(),
+      reconciliation: t.string(),
+      possible_match_item_id: t.string(),
+      agent_proposal_json: t.string(),
       review_status: t.string(),
       status: t.string(),
       supporting_evidence_ids_json: t.string(),
@@ -140,7 +149,11 @@ const spacetimedb = schema({
       evidence_ids_json: t.string(),
       explanation: t.string(),
       status: t.string(),
+      resolution: t.string(),
       resolution_reason: t.string(),
+      resolved_by: t.string(),
+      resolved_at: t.string(),
+      revision: t.u64(),
     }
   ),
 
@@ -154,8 +167,13 @@ const spacetimedb = schema({
       item_id: t.string(),
       question: t.string(),
       reason: t.string(),
+      evidence_ids_json: t.string(),
       status: t.string(),
       resolution_reason: t.string(),
+      answer: t.string(),
+      answered_by: t.string(),
+      answered_at: t.string(),
+      revision: t.u64(),
     }
   ),
 
@@ -183,6 +201,102 @@ const spacetimedb = schema({
       owner: t.string(),
       claimed_at: t.string(),
       created_at: t.string(),
+    }
+  ),
+
+  // Append-only audit trail for question answers and finding resolutions.
+  decision_event: table(
+    { public: true },
+    {
+      id: t.string().primaryKey(),
+      case_id: t.string(),
+      target_type: t.string(),
+      target_id: t.string(),
+      agent_ref: t.string(),
+      revision: t.u64(),
+      value: t.string(),
+      reviewer: t.string(),
+      note: t.string(),
+      created_at: t.string(),
+    }
+  ),
+
+  // Researcher runs and their (always unverified) candidates
+  research_run: table(
+    { public: true },
+    {
+      id: t.string().primaryKey(),
+      case_id: t.string(),
+      item_id: t.string(),
+      status: t.string(),
+      mode: t.string(),
+      app_id: t.string(),
+      agent_run_id: t.string(),
+      thread_id: t.string(),
+      error: t.string(),
+      region_currency: t.string(),
+      input_summary_json: t.string(),
+      queries_run_json: t.string(),
+      limitations_json: t.string(),
+      candidate_ids_json: t.string(),
+      candidates_valid: t.u64(),
+      candidates_invalid: t.u64(),
+      requested_by: t.string(),
+      created_at: t.string(),
+      finished_at: t.string(),
+    }
+  ),
+
+  research_candidate: table(
+    { public: true },
+    {
+      id: t.string().primaryKey(),
+      candidate_id: t.string(),
+      run_id: t.string(),
+      case_id: t.string(),
+      item_id: t.string(),
+      brand: t.string(),
+      model: t.string(),
+      product_name: t.string(),
+      product_url: t.string(),
+      matching_features_json: t.string(),
+      differing_features_json: t.string(),
+      missing_verification: t.string(),
+      price_as_displayed: t.string(),
+      currency: t.string(),
+      source_accessed_at: t.string(),
+      status: t.string(),
+      unverified: t.bool(),
+      created_at: t.string(),
+    }
+  ),
+
+  // Claim submission runs (Gmail DRAFT only — the backend never sends)
+  claim_submission: table(
+    { public: true },
+    {
+      id: t.string().primaryKey(),
+      case_id: t.string(),
+      status: t.string(),
+      mode: t.string(),
+      app_id: t.string(),
+      agent_run_id: t.string(),
+      thread_id: t.string(),
+      result_status: t.string(),
+      recipient_email: t.string(),
+      subject: t.string(),
+      body_text: t.string(),
+      attachment_filename: t.string(),
+      gmail_draft_id: t.string(),
+      gmail_message_id: t.string(),
+      missing_information_json: t.string(),
+      warnings_json: t.string(),
+      error: t.string(),
+      pdf_supplied: t.bool(),
+      pdf_filename: t.string(),
+      requested_by: t.string(),
+      created_at: t.string(),
+      finished_at: t.string(),
     }
   ),
 
@@ -243,6 +357,7 @@ export const upsert_upload = spacetimedb.reducer({ payload: t.string() }, (ctx, 
     size_bytes: BigInt(p.size_bytes ?? 0),
     sha256: p.sha256 ?? '',
     uploaded_by: p.uploaded_by ?? '',
+    evidence_id: p.evidence_id ?? '',
     url: p.url ?? '',
     stored_path: p.stored_path ?? '',
     created_at: p.created_at ?? now(),
@@ -273,6 +388,11 @@ export const upsert_investigation = spacetimedb.reducer(
       summary: p.summary ?? '',
       error: p.error ?? '',
       recovered: !!p.recovered,
+      follow_up: !!p.follow_up,
+      review_answers_sent: BigInt(p.review_answers_sent ?? 0),
+      items_created: BigInt(p.items_created ?? 0),
+      items_reconciled: BigInt(p.items_reconciled ?? 0),
+      items_flagged: BigInt(p.items_flagged ?? 0),
       item_ids_json: JSON.stringify(p.item_ids ?? []),
       requested_by: p.requested_by ?? '',
       created_at: p.created_at ?? now(),
@@ -312,6 +432,9 @@ export const upsert_item = spacetimedb.reducer({ payload: t.string() }, (ctx, { 
     location_in_image: p.location_in_image ?? '',
     visible_observations: p.visible_observations ?? '',
     user_confirmed_fields_json: JSON.stringify(p.user_confirmed_fields ?? []),
+    reconciliation: p.reconciliation ?? 'new',
+    possible_match_item_id: p.possible_match_item_id ?? '',
+    agent_proposal_json: JSON.stringify(p.agent_proposal ?? null),
     review_status: p.review_status ?? 'needs_review',
     status: p.status ?? 'ai_suggested',
     supporting_evidence_ids_json: JSON.stringify(p.supporting_evidence_ids ?? []),
@@ -420,6 +543,7 @@ export const upsert_revision = spacetimedb.reducer({ payload: t.string() }, (ctx
 // --------------------------------------------------------------------------
 export const upsert_finding = spacetimedb.reducer({ payload: t.string() }, (ctx, { payload }) => {
   const p = JSON.parse(payload);
+  const existing = ctx.db.finding.id.find(p.id);
   const row = {
     id: p.id,
     case_id: p.case_id,
@@ -430,14 +554,33 @@ export const upsert_finding = spacetimedb.reducer({ payload: t.string() }, (ctx,
     evidence_ids_json: JSON.stringify(p.evidence_ids ?? []),
     explanation: p.explanation ?? '',
     status: p.status ?? 'needs_review',
+    resolution: p.resolution ?? '',
     resolution_reason: p.resolution_reason ?? '',
+    resolved_by: p.resolved_by ?? '',
+    resolved_at: p.resolved_at ?? '',
+    revision: BigInt(p.revision ?? 0),
   };
-  if (ctx.db.finding.id.find(row.id)) ctx.db.finding.id.update(row);
-  else ctx.db.finding.insert(row);
+  if (existing) {
+    // A human decision is never erased by an agent re-import.
+    if (existing.revision > 0n && row.revision <= existing.revision) {
+      ctx.db.finding.id.update({
+        ...existing,
+        finding_type: row.finding_type,
+        item_ids_json: row.item_ids_json,
+        evidence_ids_json: row.evidence_ids_json,
+        explanation: row.explanation,
+      });
+      return;
+    }
+    ctx.db.finding.id.update(row);
+    return;
+  }
+  ctx.db.finding.insert(row);
 });
 
 export const upsert_question = spacetimedb.reducer({ payload: t.string() }, (ctx, { payload }) => {
   const p = JSON.parse(payload);
+  const existing = ctx.db.question.id.find(p.id);
   const row = {
     id: p.id,
     case_id: p.case_id,
@@ -446,11 +589,28 @@ export const upsert_question = spacetimedb.reducer({ payload: t.string() }, (ctx
     item_id: p.item_id ?? '',
     question: p.question ?? '',
     reason: p.reason ?? '',
+    evidence_ids_json: JSON.stringify(p.evidence_ids ?? []),
     status: p.status ?? 'open',
     resolution_reason: p.resolution_reason ?? '',
+    answer: p.answer ?? '',
+    answered_by: p.answered_by ?? '',
+    answered_at: p.answered_at ?? '',
+    revision: BigInt(p.revision ?? 0),
   };
-  if (ctx.db.question.id.find(row.id)) ctx.db.question.id.update(row);
-  else ctx.db.question.insert(row);
+  if (existing) {
+    if (existing.revision > 0n && row.revision <= existing.revision) {
+      ctx.db.question.id.update({
+        ...existing,
+        question: row.question,
+        reason: row.reason,
+        evidence_ids_json: row.evidence_ids_json,
+      });
+      return;
+    }
+    ctx.db.question.id.update(row);
+    return;
+  }
+  ctx.db.question.insert(row);
 });
 
 export const upsert_comment = spacetimedb.reducer({ payload: t.string() }, (ctx, { payload }) => {
@@ -466,6 +626,203 @@ export const upsert_comment = spacetimedb.reducer({ payload: t.string() }, (ctx,
   if (ctx.db.comment.id.find(row.id)) ctx.db.comment.id.update(row);
   else ctx.db.comment.insert(row);
 });
+
+// --------------------------------------------------------------------------
+// Question answers / finding resolutions (optimistic concurrency)
+// --------------------------------------------------------------------------
+export const apply_question_decision = spacetimedb.reducer(
+  {
+    question_id: t.string(),
+    expected_revision: t.u64(),
+    answer: t.string(),
+    reviewer: t.string(),
+    revision_id: t.string(),
+  },
+  (ctx, { question_id, expected_revision, answer, reviewer, revision_id }) => {
+    const existing = ctx.db.question.id.find(question_id);
+    if (!existing) throw new Error('QUESTION_NOT_FOUND');
+    if (existing.revision !== expected_revision) {
+      throw new Error(`REVISION_CONFLICT:${existing.revision}`);
+    }
+    const cleared = answer.trim() === '';
+    const next = {
+      ...existing,
+      answer,
+      answered_by: cleared ? '' : reviewer,
+      answered_at: cleared ? '' : now(),
+      status: cleared ? 'open' : 'answered',
+      revision: existing.revision + 1n,
+    };
+    ctx.db.question.id.update(next);
+    ctx.db.decision_event.insert({
+      id: revision_id,
+      case_id: existing.case_id,
+      target_type: 'question',
+      target_id: question_id,
+      agent_ref: existing.question_id,
+      revision: next.revision,
+      value: answer,
+      reviewer,
+      note: cleared ? 'cleared' : '',
+      created_at: now(),
+    });
+  }
+);
+
+export const apply_finding_decision = spacetimedb.reducer(
+  {
+    finding_id: t.string(),
+    expected_revision: t.u64(),
+    resolution: t.string(),
+    reason: t.string(),
+    reviewer: t.string(),
+    revision_id: t.string(),
+  },
+  (ctx, { finding_id, expected_revision, resolution, reason, reviewer, revision_id }) => {
+    const existing = ctx.db.finding.id.find(finding_id);
+    if (!existing) throw new Error('FINDING_NOT_FOUND');
+    if (existing.revision !== expected_revision) {
+      throw new Error(`REVISION_CONFLICT:${existing.revision}`);
+    }
+    if (resolution === 'rejected' && reason.trim() === '') {
+      throw new Error('REASON_REQUIRED');
+    }
+    const next = {
+      ...existing,
+      resolution,
+      resolution_reason: reason,
+      resolved_by: reviewer,
+      resolved_at: now(),
+      revision: existing.revision + 1n,
+    };
+    ctx.db.finding.id.update(next);
+    ctx.db.decision_event.insert({
+      id: revision_id,
+      case_id: existing.case_id,
+      target_type: 'finding',
+      target_id: finding_id,
+      agent_ref: existing.finding_id,
+      revision: next.revision,
+      value: resolution,
+      reviewer,
+      note: reason,
+      created_at: now(),
+    });
+  }
+);
+
+export const upsert_research_run = spacetimedb.reducer(
+  { payload: t.string() },
+  (ctx, { payload }) => {
+    const p = JSON.parse(payload);
+    const row = {
+      id: p.id,
+      case_id: p.case_id,
+      item_id: p.item_id,
+      status: p.status ?? 'queued',
+      mode: p.mode ?? 'live',
+      app_id: p.app_id ?? '',
+      agent_run_id: p.agent_run_id ?? '',
+      thread_id: p.thread_id ?? '',
+      error: p.error ?? '',
+      region_currency: p.region_currency ?? '',
+      input_summary_json: JSON.stringify(p.input_summary ?? {}),
+      queries_run_json: JSON.stringify(p.queries_run ?? []),
+      limitations_json: JSON.stringify(p.limitations ?? []),
+      candidate_ids_json: JSON.stringify(p.candidate_ids ?? []),
+      candidates_valid: BigInt(p.candidates_valid ?? 0),
+      candidates_invalid: BigInt(p.candidates_invalid ?? 0),
+      requested_by: p.requested_by ?? '',
+      created_at: p.created_at ?? now(),
+      finished_at: p.finished_at ?? '',
+    };
+    if (ctx.db.research_run.id.find(row.id)) ctx.db.research_run.id.update(row);
+    else ctx.db.research_run.insert(row);
+  }
+);
+
+export const upsert_research_candidate = spacetimedb.reducer(
+  { payload: t.string() },
+  (ctx, { payload }) => {
+    const p = JSON.parse(payload);
+    const row = {
+      id: p.id,
+      candidate_id: p.candidate_id ?? '',
+      run_id: p.run_id,
+      case_id: p.case_id,
+      item_id: p.item_id,
+      brand: p.brand ?? '',
+      model: p.model ?? '',
+      product_name: p.product_name ?? '',
+      product_url: p.product_url ?? '',
+      matching_features_json: JSON.stringify(p.matching_features ?? []),
+      differing_features_json: JSON.stringify(p.differing_features ?? []),
+      missing_verification: p.missing_verification ?? '',
+      price_as_displayed: p.price_as_displayed ?? '',
+      currency: p.currency ?? '',
+      source_accessed_at: p.source_accessed_at ?? '',
+      status: p.status ?? 'unverified_possible_match',
+      unverified: true,
+      created_at: p.created_at ?? now(),
+    };
+    if (ctx.db.research_candidate.id.find(row.id)) ctx.db.research_candidate.id.update(row);
+    else ctx.db.research_candidate.insert(row);
+  }
+);
+
+export const upsert_claim_submission = spacetimedb.reducer(
+  { payload: t.string() },
+  (ctx, { payload }) => {
+    const p = JSON.parse(payload);
+    const row = {
+      id: p.id,
+      case_id: p.case_id,
+      status: p.status ?? 'queued',
+      mode: p.mode ?? 'live',
+      app_id: p.app_id ?? '',
+      agent_run_id: p.agent_run_id ?? '',
+      thread_id: p.thread_id ?? '',
+      result_status: p.result_status ?? '',
+      recipient_email: p.recipient_email ?? '',
+      subject: p.subject ?? '',
+      body_text: p.body_text ?? '',
+      attachment_filename: p.attachment_filename ?? '',
+      gmail_draft_id: p.gmail_draft_id ?? '',
+      gmail_message_id: p.gmail_message_id ?? '',
+      missing_information_json: JSON.stringify(p.missing_information ?? []),
+      warnings_json: JSON.stringify(p.warnings ?? []),
+      error: p.error ?? '',
+      pdf_supplied: !!p.pdf_supplied,
+      pdf_filename: p.pdf_filename ?? '',
+      requested_by: p.requested_by ?? '',
+      created_at: p.created_at ?? now(),
+      finished_at: p.finished_at ?? '',
+    };
+    if (ctx.db.claim_submission.id.find(row.id)) ctx.db.claim_submission.id.update(row);
+    else ctx.db.claim_submission.insert(row);
+  }
+);
+
+export const upsert_decision_event = spacetimedb.reducer(
+  { payload: t.string() },
+  (ctx, { payload }) => {
+    const p = JSON.parse(payload);
+    const row = {
+      id: p.id,
+      case_id: p.case_id,
+      target_type: p.target_type,
+      target_id: p.target_id,
+      agent_ref: p.agent_ref ?? '',
+      revision: BigInt(p.revision ?? 0),
+      value: p.value ?? '',
+      reviewer: p.reviewer ?? '',
+      note: p.note ?? '',
+      created_at: p.created_at ?? now(),
+    };
+    if (ctx.db.decision_event.id.find(row.id)) ctx.db.decision_event.id.update(row);
+    else ctx.db.decision_event.insert(row);
+  }
+);
 
 // --------------------------------------------------------------------------
 // Task ownership (missing evidence someone is chasing)
@@ -525,6 +882,10 @@ export const clear_case = spacetimedb.reducer({ case_id: t.string() }, (ctx, { c
   for (const row of [...ctx.db.question.iter()]) if (row.case_id === case_id) ctx.db.question.id.delete(row.id);
   for (const row of [...ctx.db.comment.iter()]) if (row.case_id === case_id) ctx.db.comment.id.delete(row.id);
   for (const row of [...ctx.db.task.iter()]) if (row.case_id === case_id) ctx.db.task.id.delete(row.id);
+  for (const row of [...ctx.db.claim_submission.iter()]) if (row.case_id === case_id) ctx.db.claim_submission.id.delete(row.id);
+  for (const row of [...ctx.db.research_candidate.iter()]) if (row.case_id === case_id) ctx.db.research_candidate.id.delete(row.id);
+  for (const row of [...ctx.db.research_run.iter()]) if (row.case_id === case_id) ctx.db.research_run.id.delete(row.id);
+  for (const row of [...ctx.db.decision_event.iter()]) if (row.case_id === case_id) ctx.db.decision_event.id.delete(row.id);
   for (const row of [...ctx.db.activity.iter()]) if (row.case_id === case_id) ctx.db.activity.id.delete(row.id);
   for (const row of [...ctx.db.investigation.iter()]) if (row.case_id === case_id) ctx.db.investigation.id.delete(row.id);
   for (const row of [...ctx.db.upload.iter()]) if (row.case_id === case_id) ctx.db.upload.id.delete(row.id);

@@ -16,12 +16,16 @@ import uuid
 
 from .models import (
     Case,
+    ClaimSubmission,
     Comment,
+    DecisionEvent,
     EvidenceItem,
     Event,
     Finding,
     Investigation,
     Question,
+    ResearchCandidate,
+    ResearchRun,
     Revision,
     Upload,
 )
@@ -42,6 +46,10 @@ class Store:
         self.revisions: dict[str, Revision] = {}   # revision_id -> Revision
         self.findings: dict[str, Finding] = {}
         self.questions: dict[str, Question] = {}
+        self.decision_events: dict[str, DecisionEvent] = {}
+        self.claim_submissions: dict[str, ClaimSubmission] = {}
+        self.research_runs: dict[str, ResearchRun] = {}
+        self.research_candidates: dict[str, ResearchCandidate] = {}
         self.events: list[Event] = []
 
     # -- lifecycle ---------------------------------------------------------- #
@@ -57,6 +65,10 @@ class Store:
                 self.revisions,
                 self.findings,
                 self.questions,
+                self.decision_events,
+                self.claim_submissions,
+                self.research_runs,
+                self.research_candidates,
             ):
                 collection.clear()
             self.events.clear()
@@ -109,6 +121,31 @@ class Store:
     def list_questions(self, case_id: str) -> list[Question]:
         with self._lock:
             return [q for q in self.questions.values() if q.case_id == case_id]
+
+    def list_decisions(self, case_id: str) -> list[DecisionEvent]:
+        with self._lock:
+            return sorted(
+                (d for d in self.decision_events.values() if d.case_id == case_id),
+                key=lambda d: d.created_at,
+            )
+
+    def list_research_runs(self, case_id: str, item_id: str | None = None) -> list[ResearchRun]:
+        with self._lock:
+            runs = [
+                r for r in self.research_runs.values()
+                if r.case_id == case_id and (item_id is None or r.item_id == item_id)
+            ]
+            return sorted(runs, key=lambda r: r.created_at, reverse=True)
+
+    def list_research_runs_by_item(self, item_id: str) -> list[ResearchRun]:
+        with self._lock:
+            runs = [r for r in self.research_runs.values() if r.item_id == item_id]
+            return sorted(runs, key=lambda r: r.created_at, reverse=True)
+
+    def list_claim_submissions(self, case_id: str) -> list[ClaimSubmission]:
+        with self._lock:
+            rows = [c for c in self.claim_submissions.values() if c.case_id == case_id]
+            return sorted(rows, key=lambda c: c.created_at, reverse=True)
 
     def list_revisions(self, item_id: str) -> list[Revision]:
         with self._lock:

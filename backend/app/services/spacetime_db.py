@@ -36,9 +36,13 @@ from ..config import settings
 from ..models import (
     Case,
     CaseStatus,
+    ClaimSubmission,
     Comment,
+    DecisionEvent,
     Finding,
     Question,
+    ResearchCandidate,
+    ResearchRun,
     DamageLevel,
     EvidenceItem,
     Investigation,
@@ -147,6 +151,7 @@ def _upload_payload(upload: Upload) -> dict[str, Any]:
         "size_bytes": upload.size_bytes,
         "sha256": upload.sha256,
         "uploaded_by": upload.uploaded_by,
+        "evidence_id": upload.evidence_id,
         "url": upload.url,
         "stored_path": upload.stored_path,
         "created_at": _iso(upload.created_at),
@@ -169,6 +174,11 @@ def _investigation_payload(inv: Investigation) -> dict[str, Any]:
         "summary": inv.summary,
         "error": inv.error,
         "recovered": inv.recovered,
+        "follow_up": inv.follow_up,
+        "review_answers_sent": inv.review_answers_sent,
+        "items_created": inv.items_created,
+        "items_reconciled": inv.items_reconciled,
+        "items_flagged": inv.items_flagged,
         "item_ids": inv.item_ids,
         "requested_by": inv.requested_by,
         "created_at": _iso(inv.created_at),
@@ -201,6 +211,9 @@ def _item_payload(item: EvidenceItem) -> dict[str, Any]:
         "location_in_image": item.location_in_image,
         "visible_observations": item.visible_observations,
         "user_confirmed_fields": item.user_confirmed_fields,
+        "reconciliation": item.reconciliation,
+        "possible_match_item_id": item.possible_match_item_id,
+        "agent_proposal": item.agent_proposal,
         "review_status": item.review_status,
         "status": item.status.value,
         "supporting_evidence_ids": item.supporting_evidence_ids,
@@ -235,7 +248,11 @@ def _finding_payload(finding: Finding) -> dict[str, Any]:
         "evidence_ids": finding.evidence_ids,
         "explanation": finding.explanation,
         "status": finding.status,
+        "resolution": finding.resolution,
         "resolution_reason": finding.resolution_reason,
+        "resolved_by": finding.resolved_by,
+        "resolved_at": _iso(finding.resolved_at),
+        "revision": finding.revision,
     }
 
 
@@ -248,8 +265,101 @@ def _question_payload(question: Question) -> dict[str, Any]:
         "item_id": question.item_id,
         "question": question.question,
         "reason": question.reason,
+        "evidence_ids": question.evidence_ids,
         "status": question.status,
         "resolution_reason": question.resolution_reason,
+        "answer": question.answer,
+        "answered_by": question.answered_by,
+        "answered_at": _iso(question.answered_at),
+        "revision": question.revision,
+    }
+
+
+def _decision_payload(event: DecisionEvent) -> dict[str, Any]:
+    return {
+        "id": event.id,
+        "case_id": event.case_id,
+        "target_type": event.target_type,
+        "target_id": event.target_id,
+        "agent_ref": event.agent_ref,
+        "revision": event.revision,
+        "value": event.value,
+        "reviewer": event.reviewer,
+        "note": event.note,
+        "created_at": _iso(event.created_at),
+    }
+
+
+def _research_run_payload(run: ResearchRun) -> dict[str, Any]:
+    return {
+        "id": run.id,
+        "case_id": run.case_id,
+        "item_id": run.item_id,
+        "status": run.status.value,
+        "mode": run.mode,
+        "app_id": run.app_id,
+        "agent_run_id": run.agent_run_id,
+        "thread_id": run.thread_id,
+        "error": run.error,
+        "region_currency": run.region_currency,
+        "input_summary": run.input_summary,
+        "queries_run": run.queries_run,
+        "limitations": run.limitations,
+        "candidate_ids": run.candidate_ids,
+        "candidates_valid": run.candidates_valid,
+        "requested_by": run.requested_by,
+        "created_at": _iso(run.created_at),
+        "finished_at": _iso(run.finished_at),
+    }
+
+
+def _research_candidate_payload(c: ResearchCandidate) -> dict[str, Any]:
+    return {
+        "id": c.id,
+        "candidate_id": c.candidate_id,
+        "run_id": c.run_id,
+        "case_id": c.case_id,
+        "item_id": c.item_id,
+        "brand": c.brand,
+        "model": c.model,
+        "product_name": c.product_name,
+        "product_url": c.product_url,
+        "matching_features": c.matching_features,
+        "differing_features": c.differing_features,
+        # Stored as JSON inside the existing text column (no migration needed).
+        "missing_verification": json.dumps(c.missing_verification),
+        "price_as_displayed": c.price_as_displayed,
+        "currency": c.currency,
+        "source_accessed_at": c.source_accessed_at,
+        "status": c.status,
+        "created_at": _iso(c.created_at),
+    }
+
+
+def _claim_payload(submission: ClaimSubmission) -> dict[str, Any]:
+    return {
+        "id": submission.id,
+        "case_id": submission.case_id,
+        "status": submission.status.value,
+        "mode": submission.mode,
+        "app_id": submission.app_id,
+        "agent_run_id": submission.agent_run_id,
+        "thread_id": submission.thread_id,
+        "result_status": submission.result_status,
+        "recipient_email": submission.recipient_email,
+        "subject": submission.subject,
+        "body_text": submission.body_text,
+        "attachment_filename": submission.attachment_filename,
+        "gmail_draft_id": submission.gmail_draft_id,
+        "gmail_message_id": submission.gmail_message_id,
+        "missing_information": submission.missing_information,
+        "warnings": submission.warnings,
+        "error": submission.error,
+        "pdf_supplied": submission.pdf_supplied,
+        "pdf_filename": submission.pdf_filename,
+        "requested_by": submission.requested_by,
+        "created_at": _iso(submission.created_at),
+        "finished_at": _iso(submission.finished_at),
     }
 
 
@@ -280,6 +390,10 @@ _PUSHERS = {
     "comment": ("upsert_comment", _comment_payload),
     "finding": ("upsert_finding", _finding_payload),
     "question": ("upsert_question", _question_payload),
+    "decision_event": ("upsert_decision_event", _decision_payload),
+    "research_run": ("upsert_research_run", _research_run_payload),
+    "research_candidate": ("upsert_research_candidate", _research_candidate_payload),
+    "claim_submission": ("upsert_claim_submission", _claim_payload),
 }
 
 
@@ -299,6 +413,10 @@ def sync() -> dict[str, int]:
         ("comment", store.comments.values()),
         ("finding", store.findings.values()),
         ("question", store.questions.values()),
+        ("decision_event", store.decision_events.values()),
+        ("research_run", store.research_runs.values()),
+        ("research_candidate", store.research_candidates.values()),
+        ("claim_submission", store.claim_submissions.values()),
     ]
 
     try:
@@ -337,6 +455,21 @@ def _dt(value: Any) -> datetime:
         return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except ValueError:
         return utcnow()
+
+
+def _text_list(value: Any) -> list:
+    """Read a list that may have been stored as JSON, plain text, or empty."""
+    if not value:
+        return []
+    if isinstance(value, list):
+        return value
+    try:
+        parsed = json.loads(value)
+    except (TypeError, json.JSONDecodeError):
+        return [str(value)]
+    if isinstance(parsed, list):
+        return [str(entry) for entry in parsed]
+    return [str(parsed)]
 
 
 def _json(value: Any, default: Any) -> Any:
@@ -385,6 +518,7 @@ def hydrate() -> dict[str, int]:
             size_bytes=int(row.get("size_bytes") or 0),
             sha256=row.get("sha256") or "",
             uploaded_by=row.get("uploaded_by") or "anonymous",
+            evidence_id=row.get("evidence_id") or None,
             url=row.get("url") or "",
             stored_path=row.get("stored_path") or "",
             created_at=_dt(row.get("created_at")),
@@ -408,6 +542,11 @@ def hydrate() -> dict[str, int]:
             summary=row.get("summary") or None,
             error=row.get("error") or None,
             recovered=bool(row.get("recovered")),
+            follow_up=bool(row.get("follow_up")),
+            review_answers_sent=int(row.get("review_answers_sent") or 0),
+            items_created=int(row.get("items_created") or 0),
+            items_reconciled=int(row.get("items_reconciled") or 0),
+            items_flagged=int(row.get("items_flagged") or 0),
             item_ids=_json(row.get("item_ids_json"), []),
             requested_by=row.get("requested_by") or "anonymous",
             created_at=_dt(row.get("created_at")),
@@ -441,6 +580,9 @@ def hydrate() -> dict[str, int]:
             location_in_image=row.get("location_in_image") or None,
             visible_observations=row.get("visible_observations") or None,
             user_confirmed_fields=_json(row.get("user_confirmed_fields_json"), []),
+            reconciliation=row.get("reconciliation") or "new",
+            possible_match_item_id=row.get("possible_match_item_id") or None,
+            agent_proposal=_json(row.get("agent_proposal_json"), None),
             review_status=row.get("review_status") or None,
             status=ItemStatus(row.get("status") or "ai_suggested"),
             supporting_evidence_ids=_json(row.get("supporting_evidence_ids_json"), []),
@@ -476,7 +618,11 @@ def hydrate() -> dict[str, int]:
             evidence_ids=_json(row.get("evidence_ids_json"), []),
             explanation=row.get("explanation") or None,
             status=row.get("status") or "needs_review",
+            resolution=row.get("resolution") or None,
             resolution_reason=row.get("resolution_reason") or None,
+            resolved_by=row.get("resolved_by") or None,
+            resolved_at=_dt(row.get("resolved_at")) if row.get("resolved_at") else None,
+            revision=int(row.get("revision") or 0),
         )
     counts["findings"] = len(findings)
 
@@ -490,10 +636,107 @@ def hydrate() -> dict[str, int]:
             item_id=row.get("item_id") or None,
             question=row.get("question") or "",
             reason=row.get("reason") or None,
+            evidence_ids=_json(row.get("evidence_ids_json"), []),
             status=row.get("status") or "open",
             resolution_reason=row.get("resolution_reason") or None,
+            answer=row.get("answer") or None,
+            answered_by=row.get("answered_by") or None,
+            answered_at=_dt(row.get("answered_at")) if row.get("answered_at") else None,
+            revision=int(row.get("revision") or 0),
         )
     counts["questions"] = len(questions)
+
+    decisions: dict[str, DecisionEvent] = {}
+    for row in _rows("decision_event"):
+        decisions[row["id"]] = DecisionEvent(
+            id=row["id"],
+            case_id=row["case_id"],
+            target_type=row.get("target_type") or "question",
+            target_id=row.get("target_id") or "",
+            agent_ref=row.get("agent_ref") or None,
+            revision=int(row.get("revision") or 0),
+            value=row.get("value") or None,
+            reviewer=row.get("reviewer") or "anonymous",
+            note=row.get("note") or None,
+            created_at=_dt(row.get("created_at")),
+        )
+    counts["decision_events"] = len(decisions)
+
+    research_runs: dict[str, ResearchRun] = {}
+    for row in _rows("research_run"):
+        research_runs[row["id"]] = ResearchRun(
+            id=row["id"],
+            case_id=row["case_id"],
+            item_id=row["item_id"],
+            status=InvestigationStatus(row.get("status") or "queued"),
+            mode=row.get("mode") or "live",
+            app_id=row.get("app_id") or None,
+            agent_run_id=row.get("agent_run_id") or None,
+            thread_id=row.get("thread_id") or None,
+            error=row.get("error") or None,
+            region_currency=row.get("region_currency") or None,
+            input_summary=_json(row.get("input_summary_json"), {}),
+            queries_run=_json(row.get("queries_run_json"), []),
+            limitations=_json(row.get("limitations_json"), []),
+            candidate_ids=_json(row.get("candidate_ids_json"), []),
+            candidates_valid=int(row.get("candidates_valid") or 0),
+            requested_by=row.get("requested_by") or "anonymous",
+            created_at=_dt(row.get("created_at")),
+            finished_at=_dt(row.get("finished_at")) if row.get("finished_at") else None,
+        )
+    counts["research_runs"] = len(research_runs)
+
+    research_candidates: dict[str, ResearchCandidate] = {}
+    for row in _rows("research_candidate"):
+        research_candidates[row["id"]] = ResearchCandidate(
+            id=row["id"],
+            run_id=row["run_id"],
+            case_id=row["case_id"],
+            item_id=row["item_id"],
+            candidate_id=row.get("candidate_id") or None,
+            brand=row.get("brand") or None,
+            model=row.get("model") or None,
+            product_name=row.get("product_name") or None,
+            product_url=row.get("product_url") or None,
+            matching_features=_json(row.get("matching_features_json"), []),
+            differing_features=_json(row.get("differing_features_json"), []),
+            missing_verification=_text_list(row.get("missing_verification")),
+            price_as_displayed=row.get("price_as_displayed") or None,
+            currency=row.get("currency") or None,
+            source_accessed_at=row.get("source_accessed_at") or None,
+            status=row.get("status") or "unverified_possible_match",
+            unverified=True,
+            created_at=_dt(row.get("created_at")),
+        )
+    counts["research_candidates"] = len(research_candidates)
+
+    claims: dict[str, ClaimSubmission] = {}
+    for row in _rows("claim_submission"):
+        claims[row["id"]] = ClaimSubmission(
+            id=row["id"],
+            case_id=row["case_id"],
+            status=InvestigationStatus(row.get("status") or "queued"),
+            mode=row.get("mode") or "live",
+            app_id=row.get("app_id") or None,
+            agent_run_id=row.get("agent_run_id") or None,
+            thread_id=row.get("thread_id") or None,
+            result_status=row.get("result_status") or None,
+            recipient_email=row.get("recipient_email") or "",
+            subject=row.get("subject") or None,
+            body_text=row.get("body_text") or None,
+            attachment_filename=row.get("attachment_filename") or None,
+            gmail_draft_id=row.get("gmail_draft_id") or None,
+            gmail_message_id=row.get("gmail_message_id") or None,
+            missing_information=_json(row.get("missing_information_json"), []),
+            warnings=_json(row.get("warnings_json"), []),
+            error=row.get("error") or None,
+            pdf_supplied=bool(row.get("pdf_supplied")),
+            pdf_filename=row.get("pdf_filename") or None,
+            requested_by=row.get("requested_by") or "anonymous",
+            created_at=_dt(row.get("created_at")),
+            finished_at=_dt(row.get("finished_at")) if row.get("finished_at") else None,
+        )
+    counts["claim_submissions"] = len(claims)
 
     comments: dict[str, Comment] = {}
     for row in _rows("comment"):
@@ -516,6 +759,10 @@ def hydrate() -> dict[str, int]:
         store.comments.update(comments)
         store.findings.update(findings)
         store.questions.update(questions)
+        store.decision_events.update(decisions)
+        store.research_runs.update(research_runs)
+        store.research_candidates.update(research_candidates)
+        store.claim_submissions.update(claims)
 
     for obj in (
         list(cases.values())
@@ -526,6 +773,10 @@ def hydrate() -> dict[str, int]:
         + list(comments.values())
         + list(findings.values())
         + list(questions.values())
+        + list(decisions.values())
+        + list(research_runs.values())
+        + list(research_candidates.values())
+        + list(claims.values())
     ):
         payload = _PUSHERS[_table_for(obj)][1](obj)
         _synced[obj.id] = _hash(payload)
@@ -554,6 +805,14 @@ def _table_for(obj: Any) -> str:
         return "finding"
     if isinstance(obj, Question):
         return "question"
+    if isinstance(obj, DecisionEvent):
+        return "decision_event"
+    if isinstance(obj, ResearchRun):
+        return "research_run"
+    if isinstance(obj, ResearchCandidate):
+        return "research_candidate"
+    if isinstance(obj, ClaimSubmission):
+        return "claim_submission"
     raise TypeError(type(obj))
 
 

@@ -204,6 +204,8 @@ class AgentResult:
     stub: bool = False                 # True ONLY in mock mode
     evidence_transport: str = "unset"
     evidence_ids: list[str] = field(default_factory=list)
+    previous_result_url: str | None = None
+    review_answers_sent: int = 0
     payload: dict[str, Any] = field(default_factory=dict)   # full rebuild-result.json
     raw: dict[str, Any] = field(default_factory=dict)
 
@@ -321,6 +323,7 @@ async def investigate(
     room_name: str,
     evidence: list[EvidenceFile],
     confirmed_items: list[dict[str, Any]] | None = None,
+    review_answers: list[dict[str, Any]] | None = None,
     transport: str | None = None,
     previous_result_url: str | None = None,
 ) -> AgentResult:
@@ -360,6 +363,7 @@ async def investigate(
         room_name=room_name,
         evidence=evidence,
         confirmed_items=confirmed_items or [],
+        review_answers=review_answers or [],
         transport=transport,
         previous_result_url=previous_result_url,
     )
@@ -380,7 +384,10 @@ async def investigate(
         )
 
         final = await client.poll_run(run_id)
-        return await build_result(client, final, transport=transport, evidence=evidence)
+        result = await build_result(client, final, transport=transport, evidence=evidence)
+        result.previous_result_url = previous_result_url
+        result.review_answers_sent = len(review_answers or [])
+        return result
 
 
 def _resolve_evidence_url(item: EvidenceFile, transport: str) -> str:
@@ -419,7 +426,8 @@ def build_inputs(
     room_name: str,
     evidence: list[EvidenceFile],
     confirmed_items: list[dict[str, Any]],
-    transport: str,
+    review_answers: list[dict[str, Any]] | None = None,
+    transport: str = "url",
     previous_result_url: str | None = None,
 ) -> dict[str, Any]:
     """Build the exact `inputs` object Person 2 confirmed.
@@ -449,6 +457,9 @@ def build_inputs(
         "receipt_files": [e.url for e in receipts if e.url],
         "evidence_manifest": json.dumps(manifest),
         "confirmed_items": json.dumps(confirmed_items),
+        # Saved human answers, as a JSON *string*. Not an item confirmation:
+        # an answer never implies a confirmed inventory field.
+        "review_answers": json.dumps(review_answers or []),
     }
 
     if transport == "none":
@@ -469,14 +480,17 @@ def build_inputs(
 class CreaoAppClient:
     """App-scoped API Trigger client (agent.creao.ai/api/v1)."""
 
-    def __init__(self) -> None:
+    def __init__(self, app_id: str | None = None, api_key: str | None = None) -> None:
+        # Defaults keep every existing Investigator call site unchanged; the
+        # Researcher passes its own app id + credential.
         self._base = settings.creao_app_base_url.rstrip("/")
-        self._app = settings.creao_app_id
+        self._app = app_id or settings.creao_app_id
+        self._api_key = api_key or settings.creao_app_api_key
         self._api_host = urlparse(self._base).netloc
         self._client = httpx.AsyncClient(
             timeout=settings.creao_http_timeout_seconds,
             headers={
-                "Authorization": f"Bearer {settings.creao_app_api_key}",
+                "Authorization": f"Bearer {self._api_key}",
                 "Accept": "application/json",
                 "User-Agent": "rebuild-backend/0.3",
             },

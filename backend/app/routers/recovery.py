@@ -252,7 +252,7 @@ async def recover_run(body: RecoverRequest) -> RecoverResponse:
         body.run_id,
         case_id,
         len(report.created),
-        len(report.skipped),
+        len(report.matched),
     )
 
     return RecoverResponse(
@@ -262,7 +262,7 @@ async def recover_run(body: RecoverRequest) -> RecoverResponse:
         case_id=case_id,
         investigation=finished,
         items_created=len(report.created),
-        items_already_present=len(report.skipped),
+        items_already_present=len(report.matched),
         evidence_ids=evidence_ids,
         restored_case=restored_case,
         restored_uploads=restored_uploads,
