@@ -13,6 +13,7 @@ export type Finding = {
 }
 
 export type Question = {
+  answer?: string | null
   question_id: string
   item_id: string | null
   question: string
