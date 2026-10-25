@@ -513,3 +513,39 @@ draft", which must send `allow_resubmit: true`.
 
 Always render a permanent "Draft only — nothing is sent by Rebuild" note. There is
 no send action in the API, so never build a send button.
+
+
+---
+
+# Restoring a lost upload file (v0.10.2)
+
+If a restored upload shows `EVIDENCE_FILE_MISSING`, the metadata is fine but the
+bytes are not on disk. Put the original file back (this creates nothing new):
+
+```bash
+curl -sS -X POST "https://rebuild-api.onrender.com/api/admin/uploads/upl_173230835194/restore-file" \
+  -H "X-Admin-Token: $ADMIN_TOKEN" \
+  -F "case_id=case_47adcf3c2581" \
+  -F "file=@/path/to/original/upl_173230835194.png" | jq
+```
+
+The file must be **byte-identical** to the original: the server compares its
+size and SHA-256 against the values saved with the upload and rejects anything
+else with `422`. Re-running the same command is safe — it returns
+`already_present: true`.
+
+Then verify the photo is really served:
+
+```bash
+curl -s -o /tmp/photo.bin -w "%{http_code} %{content_type} %{size_download}\n" \
+  "https://rebuild-api.onrender.com/api/uploads/upl_173230835194/file"
+file /tmp/photo.bin        # expect "PNG image data"
+```
+
+The signed public URL the agent uses is checked, without printing it, by
+`GET /api/admin/evidence/{upload_id}/check`.
+
+**On Render the restored file is temporary** — the instance filesystem is
+ephemeral, so it disappears on redeploy. For production reliability attach a
+Render Disk for `UPLOAD_DIR` or move evidence to object storage; otherwise repeat
+the restore after each deploy.
