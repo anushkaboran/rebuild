@@ -68,6 +68,18 @@ class Settings(BaseSettings):
         default="",
         validation_alias=AliasChoices("CREAO_RESEARCH_API_KEY", "CREAO_RESEARCHER_API_KEY"),
     )
+    # --- third agent: Rebuild Claim Submission Assistant (draft-only) ---
+    creao_claim_app_id: str = Field(
+        default="947ad3f0-04f6-4f81-b73a-50ff6b116bf0",
+        validation_alias=AliasChoices("CREAO_CLAIM_APP_ID", "CREAO_CLAIMASSISTANT_APP_ID"),
+    )
+    creao_claim_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("CREAO_CLAIM_API_KEY", "CREAO_CLAIMASSISTANT_API_KEY"),
+    )
+    creao_claim_poll_interval_seconds: float = 3.0
+    creao_claim_timeout_seconds: float = 300.0
+
     creao_research_poll_interval_seconds: float = 3.0
     creao_research_timeout_seconds: float = 240.0
 
@@ -163,6 +175,26 @@ class Settings(BaseSettings):
             missing.append("CREAO_APP_ID")
         if not self.creao_app_base_url:
             missing.append("CREAO_APP_BASE_URL")
+        return missing
+
+    @property
+    def claim_configured(self) -> bool:
+        return bool(
+            self.creao_live
+            and self.creao_claim_app_id
+            and self.creao_claim_api_key
+            and self.creao_app_base_url
+        )
+
+    @property
+    def claim_missing_settings(self) -> list[str]:
+        if not self.creao_live:
+            return []
+        missing = []
+        if not self.creao_claim_api_key:
+            missing.append("CREAO_CLAIM_API_KEY")
+        if not self.creao_claim_app_id:
+            missing.append("CREAO_CLAIM_APP_ID")
         return missing
 
     @property

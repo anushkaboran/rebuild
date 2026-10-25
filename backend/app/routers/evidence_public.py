@@ -71,6 +71,35 @@ def public_previous_result(
 
 
 @router.get(
+    "/claims/{submission_id}/pdf/public",
+    summary="Serve a claim submission's recovery PDF to the agent (signed URL)",
+    include_in_schema=False,
+)
+def public_claim_pdf(
+    submission_id: str,
+    exp: int = Query(...),
+    sig: str = Query(...),
+) -> Response:
+    _authorise(evidence_urls.CLAIM_PDF_PATH, submission_id, exp, sig)
+
+    submission = store.claim_submissions.get(submission_id)
+    if submission is None or not submission.pdf_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "CLAIM_PDF_NOT_FOUND"},
+        )
+
+    return Response(
+        content=submission.pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            **_NO_CACHE,
+            "Content-Disposition": f'attachment; filename="{submission.pdf_filename or "recovery-inventory.pdf"}"',
+        },
+    )
+
+
+@router.get(
     "/{upload_id}/public",
     summary="Serve an uploaded photo or receipt to the agent (signed URL)",
     include_in_schema=False,

@@ -16,6 +16,7 @@ import uuid
 
 from .models import (
     Case,
+    ClaimSubmission,
     Comment,
     DecisionEvent,
     EvidenceItem,
@@ -46,6 +47,7 @@ class Store:
         self.findings: dict[str, Finding] = {}
         self.questions: dict[str, Question] = {}
         self.decision_events: dict[str, DecisionEvent] = {}
+        self.claim_submissions: dict[str, ClaimSubmission] = {}
         self.research_runs: dict[str, ResearchRun] = {}
         self.research_candidates: dict[str, ResearchCandidate] = {}
         self.events: list[Event] = []
@@ -64,6 +66,7 @@ class Store:
                 self.findings,
                 self.questions,
                 self.decision_events,
+                self.claim_submissions,
                 self.research_runs,
                 self.research_candidates,
             ):
@@ -138,6 +141,11 @@ class Store:
         with self._lock:
             runs = [r for r in self.research_runs.values() if r.item_id == item_id]
             return sorted(runs, key=lambda r: r.created_at, reverse=True)
+
+    def list_claim_submissions(self, case_id: str) -> list[ClaimSubmission]:
+        with self._lock:
+            rows = [c for c in self.claim_submissions.values() if c.case_id == case_id]
+            return sorted(rows, key=lambda c: c.created_at, reverse=True)
 
     def list_revisions(self, item_id: str) -> list[Revision]:
         with self._lock:

@@ -383,6 +383,82 @@ class ResearchStartRequest(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
+# Claim submission (Gmail DRAFT only — never sent)
+# --------------------------------------------------------------------------- #
+CLAIM_RESULT_STATUSES = ("draft_ready", "needs_information", "draft_failed")
+
+CLAIM_RESULT_KEYS = (
+    "case_ref",
+    "status",
+    "recipient_email",
+    "subject",
+    "body_text",
+    "attachment_filename",
+    "gmail_draft_id",
+    "gmail_message_id",
+    "missing_information",
+    "warnings",
+)
+
+
+class ClaimSubmissionRequest(BaseModel):
+    """The six required agent inputs plus the optional ones.
+
+    `case_ref` and `reviewed_record` are built server-side; a caller cannot pass
+    them, so the record can never disagree with the saved case.
+    """
+
+    sender_name: str = Field(min_length=1, max_length=200)
+    insurer_name: str = Field(min_length=1, max_length=200)
+    recipient_email: str = Field(min_length=3, max_length=320)
+    policy_number: Optional[str] = Field(default=None, max_length=120)
+    claim_number: Optional[str] = Field(default=None, max_length=120)
+    policy_type: Optional[str] = Field(default=None, max_length=120)
+    additional_notes: Optional[str] = Field(default=None, max_length=4000)
+    # Generate our recovery PDF and hand the agent a signed HTTPS URL.
+    include_recovery_pdf: bool = True
+    # Required to start a second submission after one already produced a draft.
+    allow_resubmit: bool = False
+    requested_by: str = Field(default="anonymous", max_length=120)
+
+
+class ClaimSubmission(BaseModel):
+    id: str
+    case_id: str
+    status: InvestigationStatus = InvestigationStatus.queued
+    mode: Literal["mock", "live"] = "live"
+    app_id: Optional[str] = None
+    agent_run_id: Optional[str] = None
+    thread_id: Optional[str] = None
+    # Agent result
+    result_status: Optional[str] = None          # draft_ready | needs_information | draft_failed
+    recipient_email: str
+    subject: Optional[str] = None
+    body_text: Optional[str] = None
+    attachment_filename: Optional[str] = None
+    gmail_draft_id: Optional[str] = None
+    gmail_message_id: Optional[str] = None
+    missing_information: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    # Bookkeeping
+    error: Optional[str] = None
+    pdf_supplied: bool = False
+    # Generated PDF bytes; never serialised to clients.
+    pdf_bytes: Optional[bytes] = Field(default=None, exclude=True)
+    pdf_filename: Optional[str] = None
+    requested_by: str = "anonymous"
+    created_at: datetime = Field(default_factory=utcnow)
+    finished_at: Optional[datetime] = None
+
+
+class ClaimSubmissionResponse(BaseModel):
+    submission: ClaimSubmission
+    # True when a Gmail draft exists for this submission (id is real, never sent).
+    draft_created: bool = False
+    sent: bool = False
+
+
+# --------------------------------------------------------------------------- #
 # Agent findings and questions
 # --------------------------------------------------------------------------- #
 FINDING_RESOLUTIONS = ("confirmed", "rejected", "needs_more_evidence", "unresolved")
@@ -651,6 +727,8 @@ class Event(BaseModel):
         "comment.created",
         "research.started",
         "research.completed",
+        "claim.started",
+        "claim.completed",
     ]
     case_id: str
     payload: dict[str, Any] = Field(default_factory=dict)

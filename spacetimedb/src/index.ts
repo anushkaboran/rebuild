@@ -271,6 +271,35 @@ const spacetimedb = schema({
     }
   ),
 
+  // Claim submission runs (Gmail DRAFT only — the backend never sends)
+  claim_submission: table(
+    { public: true },
+    {
+      id: t.string().primaryKey(),
+      case_id: t.string(),
+      status: t.string(),
+      mode: t.string(),
+      app_id: t.string(),
+      agent_run_id: t.string(),
+      thread_id: t.string(),
+      result_status: t.string(),
+      recipient_email: t.string(),
+      subject: t.string(),
+      body_text: t.string(),
+      attachment_filename: t.string(),
+      gmail_draft_id: t.string(),
+      gmail_message_id: t.string(),
+      missing_information_json: t.string(),
+      warnings_json: t.string(),
+      error: t.string(),
+      pdf_supplied: t.bool(),
+      pdf_filename: t.string(),
+      requested_by: t.string(),
+      created_at: t.string(),
+      finished_at: t.string(),
+    }
+  ),
+
   // Shared activity feed for the collaboration sidebar.
   activity: table(
     { public: true },
@@ -741,6 +770,39 @@ export const upsert_research_candidate = spacetimedb.reducer(
   }
 );
 
+export const upsert_claim_submission = spacetimedb.reducer(
+  { payload: t.string() },
+  (ctx, { payload }) => {
+    const p = JSON.parse(payload);
+    const row = {
+      id: p.id,
+      case_id: p.case_id,
+      status: p.status ?? 'queued',
+      mode: p.mode ?? 'live',
+      app_id: p.app_id ?? '',
+      agent_run_id: p.agent_run_id ?? '',
+      thread_id: p.thread_id ?? '',
+      result_status: p.result_status ?? '',
+      recipient_email: p.recipient_email ?? '',
+      subject: p.subject ?? '',
+      body_text: p.body_text ?? '',
+      attachment_filename: p.attachment_filename ?? '',
+      gmail_draft_id: p.gmail_draft_id ?? '',
+      gmail_message_id: p.gmail_message_id ?? '',
+      missing_information_json: JSON.stringify(p.missing_information ?? []),
+      warnings_json: JSON.stringify(p.warnings ?? []),
+      error: p.error ?? '',
+      pdf_supplied: !!p.pdf_supplied,
+      pdf_filename: p.pdf_filename ?? '',
+      requested_by: p.requested_by ?? '',
+      created_at: p.created_at ?? now(),
+      finished_at: p.finished_at ?? '',
+    };
+    if (ctx.db.claim_submission.id.find(row.id)) ctx.db.claim_submission.id.update(row);
+    else ctx.db.claim_submission.insert(row);
+  }
+);
+
 export const upsert_decision_event = spacetimedb.reducer(
   { payload: t.string() },
   (ctx, { payload }) => {
@@ -820,6 +882,7 @@ export const clear_case = spacetimedb.reducer({ case_id: t.string() }, (ctx, { c
   for (const row of [...ctx.db.question.iter()]) if (row.case_id === case_id) ctx.db.question.id.delete(row.id);
   for (const row of [...ctx.db.comment.iter()]) if (row.case_id === case_id) ctx.db.comment.id.delete(row.id);
   for (const row of [...ctx.db.task.iter()]) if (row.case_id === case_id) ctx.db.task.id.delete(row.id);
+  for (const row of [...ctx.db.claim_submission.iter()]) if (row.case_id === case_id) ctx.db.claim_submission.id.delete(row.id);
   for (const row of [...ctx.db.research_candidate.iter()]) if (row.case_id === case_id) ctx.db.research_candidate.id.delete(row.id);
   for (const row of [...ctx.db.research_run.iter()]) if (row.case_id === case_id) ctx.db.research_run.id.delete(row.id);
   for (const row of [...ctx.db.decision_event.iter()]) if (row.case_id === case_id) ctx.db.decision_event.id.delete(row.id);

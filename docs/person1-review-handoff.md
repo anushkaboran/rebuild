@@ -438,3 +438,51 @@ Verified against the live run's unmodified `research-candidates.json`:
 **No live Researcher run has been executed.** Everything above is verified
 against faked CREAO responses (the contract shape, validation, dedupe, isolation
 and persistence). The first real run is the remaining check.
+
+
+---
+
+# Claim submission drafts (v0.10.0)
+
+The backend prepares a Gmail **draft** through the Claim Submission Assistant.
+Nothing is ever sent, and the backend never contacts Gmail itself.
+
+```http
+POST /api/cases/{case_id}/claim-submission
+{
+  "sender_name": "Priya Raman",
+  "insurer_name": "Northwind Insurance",
+  "recipient_email": "claims@insurer.test",
+  "policy_number": "POL-12345",
+  "include_recovery_pdf": true
+}
+```
+
+- `202` → `{ submission: { id, status: "queued", … }, draft_created: false, sent: false }`
+- `200` → an identical request while one is running returns that submission
+  (no second agent run, no second draft)
+- `409 CLAIM_DUPLICATE` → a draft already exists or a prior attempt is uncertain.
+  Show `detail.gmail_draft_id` / `detail.existing_status` and require an explicit
+  "create another draft" action that sends `allow_resubmit: true`.
+
+```http
+GET /api/claim-submissions/{submission_id}
+GET /api/cases/{case_id}/claim-submissions
+```
+
+Render:
+
+| `result_status` | Meaning |
+|---|---|
+| `draft_ready` | a real unsent draft exists — show `gmail_draft_id`, `subject`, `attachment_filename` |
+| `needs_information` | nothing was drafted; show `missing_information` |
+| `draft_failed` | nothing was drafted; show `warnings` and never retry automatically |
+
+Always show `sent: false` as a badge ("Draft only — nothing was sent"). Never
+display a draft as sent, and never offer a "send" button that calls the backend —
+the backend has no send capability.
+
+`reviewed_record` is built server-side from the saved case: confirmed facts come
+only from human revisions / `user_confirmed_fields`, everything else is labelled
+as an agent observation. `missing_information` and `warnings` are arrays of
+strings and may both be empty.

@@ -36,6 +36,7 @@ from ..config import settings
 from ..models import (
     Case,
     CaseStatus,
+    ClaimSubmission,
     Comment,
     DecisionEvent,
     Finding,
@@ -335,6 +336,33 @@ def _research_candidate_payload(c: ResearchCandidate) -> dict[str, Any]:
     }
 
 
+def _claim_payload(submission: ClaimSubmission) -> dict[str, Any]:
+    return {
+        "id": submission.id,
+        "case_id": submission.case_id,
+        "status": submission.status.value,
+        "mode": submission.mode,
+        "app_id": submission.app_id,
+        "agent_run_id": submission.agent_run_id,
+        "thread_id": submission.thread_id,
+        "result_status": submission.result_status,
+        "recipient_email": submission.recipient_email,
+        "subject": submission.subject,
+        "body_text": submission.body_text,
+        "attachment_filename": submission.attachment_filename,
+        "gmail_draft_id": submission.gmail_draft_id,
+        "gmail_message_id": submission.gmail_message_id,
+        "missing_information": submission.missing_information,
+        "warnings": submission.warnings,
+        "error": submission.error,
+        "pdf_supplied": submission.pdf_supplied,
+        "pdf_filename": submission.pdf_filename,
+        "requested_by": submission.requested_by,
+        "created_at": _iso(submission.created_at),
+        "finished_at": _iso(submission.finished_at),
+    }
+
+
 def _comment_payload(comment: Comment) -> dict[str, Any]:
     return {
         "id": comment.id,
@@ -365,6 +393,7 @@ _PUSHERS = {
     "decision_event": ("upsert_decision_event", _decision_payload),
     "research_run": ("upsert_research_run", _research_run_payload),
     "research_candidate": ("upsert_research_candidate", _research_candidate_payload),
+    "claim_submission": ("upsert_claim_submission", _claim_payload),
 }
 
 
@@ -387,6 +416,7 @@ def sync() -> dict[str, int]:
         ("decision_event", store.decision_events.values()),
         ("research_run", store.research_runs.values()),
         ("research_candidate", store.research_candidates.values()),
+        ("claim_submission", store.claim_submissions.values()),
     ]
 
     try:
@@ -680,6 +710,34 @@ def hydrate() -> dict[str, int]:
         )
     counts["research_candidates"] = len(research_candidates)
 
+    claims: dict[str, ClaimSubmission] = {}
+    for row in _rows("claim_submission"):
+        claims[row["id"]] = ClaimSubmission(
+            id=row["id"],
+            case_id=row["case_id"],
+            status=InvestigationStatus(row.get("status") or "queued"),
+            mode=row.get("mode") or "live",
+            app_id=row.get("app_id") or None,
+            agent_run_id=row.get("agent_run_id") or None,
+            thread_id=row.get("thread_id") or None,
+            result_status=row.get("result_status") or None,
+            recipient_email=row.get("recipient_email") or "",
+            subject=row.get("subject") or None,
+            body_text=row.get("body_text") or None,
+            attachment_filename=row.get("attachment_filename") or None,
+            gmail_draft_id=row.get("gmail_draft_id") or None,
+            gmail_message_id=row.get("gmail_message_id") or None,
+            missing_information=_json(row.get("missing_information_json"), []),
+            warnings=_json(row.get("warnings_json"), []),
+            error=row.get("error") or None,
+            pdf_supplied=bool(row.get("pdf_supplied")),
+            pdf_filename=row.get("pdf_filename") or None,
+            requested_by=row.get("requested_by") or "anonymous",
+            created_at=_dt(row.get("created_at")),
+            finished_at=_dt(row.get("finished_at")) if row.get("finished_at") else None,
+        )
+    counts["claim_submissions"] = len(claims)
+
     comments: dict[str, Comment] = {}
     for row in _rows("comment"):
         comments[row["id"]] = Comment(
@@ -704,6 +762,7 @@ def hydrate() -> dict[str, int]:
         store.decision_events.update(decisions)
         store.research_runs.update(research_runs)
         store.research_candidates.update(research_candidates)
+        store.claim_submissions.update(claims)
 
     for obj in (
         list(cases.values())
@@ -717,6 +776,7 @@ def hydrate() -> dict[str, int]:
         + list(decisions.values())
         + list(research_runs.values())
         + list(research_candidates.values())
+        + list(claims.values())
     ):
         payload = _PUSHERS[_table_for(obj)][1](obj)
         _synced[obj.id] = _hash(payload)
@@ -751,6 +811,8 @@ def _table_for(obj: Any) -> str:
         return "research_run"
     if isinstance(obj, ResearchCandidate):
         return "research_candidate"
+    if isinstance(obj, ClaimSubmission):
+        return "claim_submission"
     raise TypeError(type(obj))
 
 

@@ -541,3 +541,45 @@ def test_research_run_and_candidates_survive_restart(live):
     assert candidate["unverified"] is True
     assert candidate["price_as_displayed"] == "$349.00"
     assert candidate["matching_features"] == ["wing back"]
+
+
+def test_claim_submission_survives_restart(live):
+    from app.models import Case, ClaimSubmission
+
+    case_id = _unique("case")
+    submission_id = _unique("clm")
+    with TestClient(app) as client:
+        client.post("/api/cases", json={"title": "claim restart"})
+        store.cases[case_id] = Case(id=case_id, title="claim restart")
+        store.claim_submissions[submission_id] = ClaimSubmission(
+            id=submission_id,
+            case_id=case_id,
+            status="complete",
+            app_id="947ad3f0-04f6-4f81-b73a-50ff6b116bf0",
+            agent_run_id="creao-claim-1",
+            recipient_email="claims@insurer.test",
+            result_status="draft_ready",
+            subject="Claim submission - case_x",
+            body_text="Dear insurer,",
+            attachment_filename="recovery-inventory.pdf",
+            gmail_draft_id="draft_123",
+            gmail_message_id="msg_123",
+            missing_information=["policy_number"],
+            warnings=["no policy number supplied"],
+            pdf_supplied=True,
+            pdf_filename="recovery-inventory.pdf",
+        )
+        spacetime_db.sync()
+
+    store.reset()
+    with TestClient(app) as client:
+        body = client.get(f"/api/claim-submissions/{submission_id}").json()
+
+    submission = body["submission"]
+    assert submission["result_status"] == "draft_ready"
+    assert submission["gmail_draft_id"] == "draft_123"
+    assert submission["agent_run_id"] == "creao-claim-1"
+    assert submission["missing_information"] == ["policy_number"]
+    assert submission["warnings"] == ["no policy number supplied"]
+    assert body["draft_created"] is True
+    assert body["sent"] is False
