@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://jaunt-distance-precision.ngrok-free.dev/api/:path*"
+      "destination": "https://rebuild-api.onrender.com/api/:path*"
     }
   ]
 }
