@@ -1,3 +1,4 @@
+import ClaimSubmission from './ClaimSubmission'
 import ProductResearch from './ProductResearch'
 import UpdateInvestigation from './UpdateInvestigation'
 import BackendReview from './BackendReview'
@@ -358,7 +359,7 @@ export default function Inventory({ caseId, simulated = false, activeView = 'inv
 
   return (
     <section className="inventory-workspace" aria-labelledby="inventory-title">
-      <div className="inventory-heading"><div><p className="eyebrow">{activeView === 'review' ? 'REVIEW' : 'INVENTORY'}</p><h1 id="inventory-title">{activeView === 'review' ? 'Review your items.' : 'Your recovery record.'}</h1></div>{caseId ? <div className="backend-toolbar"><button type="button" className="button-secondary" disabled={loading} onClick={() => void loadReview()}>{loading ? 'Loading…' : backendResult ? 'Refresh case inventory' : 'Open case inventory →'}</button><DownloadPdf caseId={caseId} /></div> : <button type="button" className="button-primary inventory-create-button" onClick={() => setCreating(true)}><span aria-hidden="true">＋</span> Create item</button>}</div>
+      <div className="inventory-heading"><div><p className="eyebrow">{activeView === 'review' ? 'REVIEW' : 'INVENTORY'}</p><h1 id="inventory-title">{activeView === 'review' ? 'Review your items.' : 'Your recovery record.'}</h1></div>{caseId ? <div className="backend-toolbar"><button type="button" className="button-secondary" disabled={loading} onClick={() => void loadReview()}>{loading ? 'Loading…' : backendResult ? 'Refresh case inventory' : 'Open case inventory →'}</button><DownloadPdf caseId={caseId} /><ClaimSubmission key={caseId} caseId={caseId} /></div> : <button type="button" className="button-primary inventory-create-button" onClick={() => setCreating(true)}><span aria-hidden="true">＋</span> Create item</button>}</div>
 
       {caseId && backendResult && (
         <UpdateInvestigation key={caseId} caseId={caseId} onComplete={loadReview} />
