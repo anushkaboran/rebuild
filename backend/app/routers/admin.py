@@ -10,13 +10,27 @@ the machine running the server.
 
 from __future__ import annotations
 
+import hashlib
 import hmac
 import ipaddress
 import logging
+import os
+import re
+import uuid
+from pathlib import Path
 from urllib.parse import urljoin, urlparse
 
 import httpx
-from fastapi import APIRouter, Header, HTTPException, Request, status
+from fastapi import (
+    APIRouter,
+    File,
+    Form,
+    Header,
+    HTTPException,
+    Request,
+    UploadFile,
+    status,
+)
 
 from ..config import settings
 from ..services import evidence_urls, state_io, storage
@@ -115,6 +129,199 @@ def _allowed_netloc() -> tuple[str, str]:
                 },
             )
     return base, parsed.netloc
+
+
+_SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,120}$")
+
+
+def _clean_suffix(filename: str | None, stored_path: str | None, content_type: str | None) -> str:
+    """Derive a safe, allow-listed extension from the saved metadata."""
+    for candidate in (stored_path, filename):
+        if not candidate:
+            continue
+        suffix = Path(candidate).suffix.lower()
+        if suffix in {".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic", ".pdf"}:
+            return suffix
+    return {
+        "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp",
+        "image/gif": ".gif", "image/heic": ".heic", "application/pdf": ".pdf",
+    }.get((content_type or "").lower(), "")
+
+
+def _sha256_of(path: Path) -> tuple[str, int]:
+    digest = hashlib.sha256()
+    size = 0
+    with path.open("rb") as handle:
+        while chunk := handle.read(1024 * 1024):
+            digest.update(chunk)
+            size += len(chunk)
+    return digest.hexdigest(), size
+
+
+def _fail(code: str, message: str, http: int, **extra) -> HTTPException:
+    return HTTPException(
+        status_code=http, detail={"code": code, "message": message, **extra}
+    )
+
+
+@router.post(
+    "/uploads/{upload_id}/restore-file",
+    summary="Restore the original bytes for an existing upload (admin only)",
+    responses={
+        401: {"description": "Missing or wrong X-Admin-Token"},
+        404: {"description": "Unknown upload"},
+        409: {"description": "Integrity metadata missing, case mismatch, or a different file exists"},
+        422: {"description": "Size or SHA-256 does not match the saved metadata"},
+        503: {"description": "ADMIN_TOKEN is not configured"},
+    },
+)
+async def restore_upload_file(
+    upload_id: str,
+    request: Request,
+    file: UploadFile = File(..., description="The original image/PDF bytes"),
+    case_id: str | None = Form(default=None),
+    x_admin_token: str | None = Header(default=None),
+) -> dict:
+    """Put the original file back under the existing upload record.
+
+    Creates nothing: no new Upload, EvidenceItem or Case. Every id, evidence
+    reference, revision and human decision is left untouched. The file is only
+    accepted when its size **and** SHA-256 match the values saved with the upload
+    at ingest time — a client-supplied checksum is never trusted on its own.
+    """
+    _require_token(x_admin_token)
+
+    upload = store.uploads.get(upload_id)
+    if upload is None:
+        raise _fail("UPLOAD_NOT_FOUND", f"Upload '{upload_id}' is not known.", status.HTTP_404_NOT_FOUND)
+
+    if case_id and case_id != upload.case_id:
+        raise _fail(
+            "CASE_MISMATCH",
+            "This upload does not belong to the supplied case; nothing was changed.",
+            status.HTTP_409_CONFLICT,
+        )
+
+    expected_sha = (upload.sha256 or "").strip().lower()
+    expected_size = int(upload.size_bytes or 0)
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_sha) or expected_size <= 0:
+        raise _fail(
+            "UPLOAD_INTEGRITY_METADATA_MISSING",
+            "This upload record has no trusted SHA-256 / size to verify against. "
+            "Restore the value from the original upload API response (it returns "
+            "sha256 and size_bytes) or from a known-good backup copy of the file; "
+            "no checksum will be invented.",
+            status.HTTP_409_CONFLICT,
+        )
+
+    if not _SAFE_ID.match(upload.case_id) or not _SAFE_ID.match(upload.id):
+        raise _fail("UNSAFE_PATH", "Upload identifiers are not safe for path construction.",
+                    status.HTTP_400_BAD_REQUEST)
+
+    suffix = _clean_suffix(upload.original_filename, upload.stored_path, upload.content_type)
+    if not suffix:
+        raise _fail(
+            "UNSUPPORTED_FILE_TYPE",
+            "The saved upload has no supported image/PDF type to restore to.",
+            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+        )
+
+    root = settings.upload_dir.resolve()
+    directory = (root / upload.case_id).resolve()
+    target = (directory / f"{upload.id}{suffix}").resolve()
+    # Belt and braces: refuse anything that escapes the upload root.
+    if root not in target.parents or directory != target.parent:
+        raise _fail("UNSAFE_PATH", "Resolved path escapes the upload directory.",
+                    status.HTTP_400_BAD_REQUEST)
+    directory.mkdir(parents=True, exist_ok=True)
+
+    max_bytes = settings.max_upload_bytes
+    temp = directory / f".restore-{uuid.uuid4().hex}.tmp"
+
+    digest = hashlib.sha256()
+    size = 0
+    try:
+        with temp.open("wb") as out:
+            while chunk := await file.read(1024 * 1024):
+                size += len(chunk)
+                if size > max_bytes:
+                    raise _fail(
+                        "FILE_TOO_LARGE",
+                        f"Uploaded file exceeds the {max_bytes} byte limit.",
+                        status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    )
+                digest.update(chunk)
+                out.write(chunk)
+
+        if size == 0:
+            raise _fail("EMPTY_FILE", "The uploaded file is empty.", status.HTTP_400_BAD_REQUEST)
+
+        actual_sha = digest.hexdigest()
+        if size != expected_size:
+            raise _fail(
+                "SIZE_MISMATCH",
+                "Uploaded file size does not match the size saved with this upload.",
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                expected_size=expected_size,
+                actual_size=size,
+            )
+        if actual_sha != expected_sha:
+            raise _fail(
+                "SHA256_MISMATCH",
+                "Uploaded file SHA-256 does not match the digest saved with this upload.",
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                expected_sha256=expected_sha,
+                actual_sha256=actual_sha,
+            )
+
+        # --- destination handling ----------------------------------------- #
+        if target.exists():
+            existing_sha, existing_size = _sha256_of(target)
+            if existing_sha == expected_sha and existing_size == expected_size:
+                _mark_restored(upload, target, root)
+                return _restored(upload, size, actual_sha, already_present=True)
+            raise _fail(
+                "DESTINATION_EXISTS",
+                "A different file already exists at the destination; it was not "
+                "overwritten. Move it aside before restoring.",
+                status.HTTP_409_CONFLICT,
+            )
+
+        # Atomic within the same directory (same filesystem).
+        os.replace(temp, target)
+        _mark_restored(upload, target, root)
+        logger.info("restored file for upload %s (%d bytes)", upload.id, size)
+        return _restored(upload, size, actual_sha, already_present=False)
+    finally:
+        if temp.exists():
+            try:
+                temp.unlink()
+            except OSError:  # pragma: no cover - best effort cleanup
+                logger.warning("could not remove temp file for %s", upload_id)
+
+
+def _mark_restored(upload, target: Path, root: Path) -> None:
+    """Record the relative path on the existing record — nothing else changes."""
+    relative = str(target.relative_to(root))
+    updated = upload.model_copy(
+        update={"stored_path": relative, "url": f"/api/uploads/{upload.id}/file"}
+    )
+    with store.lock:
+        store.uploads[upload.id] = updated
+
+
+def _restored(upload, size: int, sha: str, *, already_present: bool) -> dict:
+    return {
+        "upload_id": upload.id,
+        "case_id": upload.case_id,
+        "restored": True,
+        "already_present": already_present,
+        "size_bytes": size,
+        "sha256": sha,
+        "content_type": upload.content_type,
+        "filename": upload.original_filename,
+        "evidence_id": upload.evidence_id,
+    }
 
 
 @router.get(
