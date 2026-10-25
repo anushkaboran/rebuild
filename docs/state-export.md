@@ -173,3 +173,59 @@ curl -s localhost:8000/api/research/rsch_484120b13d89/diagnostics | jq '.result_
 
 The run's `limitations` record that the photo could not be fetched — that stays
 true for **that** run and is not rewritten. The fix applies to future runs.
+
+---
+
+## 6h. Admin diagnostic — does the signed evidence URL work?
+
+```
+GET /api/admin/evidence/{upload_id}/check
+X-Admin-Token: $ADMIN_TOKEN
+```
+
+Answers one question: *if the Agent fetched this upload's signed public URL right
+now, would it get the image?*
+
+- **Requires `ADMIN_TOKEN`.** With the token unset the route returns `503
+  ADMIN_TOKEN_NOT_CONFIGURED` — there is **no loopback bypass**, because the
+  server is publicly exposed through ngrok.
+- Accepts **only an upload id**. The caller cannot supply a URL, so there is no
+  SSRF surface from user input.
+- Mints a **fresh** signed URL with the running process's key, fetches it back
+  through `REBUILD_PUBLIC_BASE_URL` (https required unless
+  `CREAO_ALLOW_PRIVATE_EVIDENCE_HOSTS=true` for tests), follows at most two
+  redirects **to the same host only**, and enforces
+  `ADMIN_CHECK_TIMEOUT_SECONDS` (10 s) and `ADMIN_CHECK_MAX_BYTES` (25 MiB).
+- Never returns, logs or echoes the URL, query string, signing key or headers.
+- Does not modify evidence, inventory or case state, and never calls CREAO.
+
+### Success
+
+```json
+{ "upload_id": "upl_173230835194", "http_status": 200,
+  "content_type": "image/png", "byte_count": 37170,
+  "valid_png_signature": true }
+```
+
+### Fetch problems (HTTP 200, diagnostic body)
+
+The endpoint itself succeeded; the public URL did not.
+
+| `error_code` | Meaning |
+|---|---|
+| `PUBLIC_URL_HTTP_ERROR` | the origin answered 4xx/5xx (status is in `http_status`) |
+| `FETCH_TIMEOUT` | no answer within the configured timeout |
+| `REDIRECT_NOT_ALLOWED` | it redirected to a different host |
+| `REDIRECT_LIMIT` | more than two same-host redirects |
+| `RESPONSE_TOO_LARGE` | body exceeded `ADMIN_CHECK_MAX_BYTES` |
+| `FETCH_FAILED` | connection error (details deliberately withheld) |
+
+### Local failures (HTTP 4xx)
+
+| Status | `code` | Meaning |
+|---|---|---|
+| 401 | `ADMIN_TOKEN_INVALID` | missing or wrong token |
+| 404 | `UPLOAD_NOT_FOUND` | unknown upload id |
+| 404 | `EVIDENCE_FILE_MISSING` | no file on disk for this upload |
+| 409 | `PUBLIC_BASE_URL_NOT_CONFIGURED` / `_INVALID` / `_INSECURE` / `_NOT_PUBLIC` | bad public base |
+| 503 | `ADMIN_TOKEN_NOT_CONFIGURED` | `ADMIN_TOKEN` unset |
