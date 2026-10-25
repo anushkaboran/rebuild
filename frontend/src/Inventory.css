@@ -376,3 +376,8 @@
   font-size: 13px;
   line-height: 1.7;
 }
+
+.item-photo-card { width: 100%; height: 100%; overflow: hidden; }
+.inventory-modal-media:has(.item-photo-editor) { height: auto; overflow: visible; display: block; }
+.inventory-modal-media .item-photo-editor img { height: 100%; width: 100%; object-fit: cover; }
+.item-photo-editor input[type="range"] { width: 100%; }
