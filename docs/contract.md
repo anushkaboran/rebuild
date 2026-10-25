@@ -1250,6 +1250,86 @@ duplicate protection live (a restored `draft_ready` still returns
 `409 CLAIM_DUPLICATE`). Older snapshots without the key remain valid; PDF bytes
 are never exported.
 
+
+---
+
+## 6j. Restoring a lost upload file (admin)
+
+An upload's **metadata** travels in the snapshot; its **bytes** do not. When a
+restored upload has no file on disk, this endpoint puts the original file back
+under the same record — creating nothing.
+
+```
+POST /api/admin/uploads/{upload_id}/restore-file
+X-Admin-Token: $ADMIN_TOKEN
+Content-Type: multipart/form-data
+
+file:    <the original image/PDF bytes>   (required)
+case_id: <expected case id>               (optional guard)
+```
+
+### Verification
+
+The file is accepted only when it matches the values saved **at ingest time**:
+
+| Check | Source of truth |
+|---|---|
+| size | `Upload.size_bytes` from the snapshot |
+| SHA-256 | `Upload.sha256` from the snapshot |
+
+A client-supplied checksum is never trusted — there is no request field for one.
+If the record has no usable `sha256`/`size_bytes`, the call fails with
+`UPLOAD_INTEGRITY_METADATA_MISSING` and nothing is written. Recover the real
+digest from the original upload API response (`POST …/uploads` returns `sha256`
+and `size_bytes`) or from a known-good copy of the file; never invent one.
+
+### Success
+
+```json
+{ "upload_id": "upl_173230835194", "case_id": "case_47adcf3c2581",
+  "restored": true, "already_present": false,
+  "size_bytes": 37170,
+  "sha256": "…64 hex…", "content_type": "image/png",
+  "filename": "01_room_armchair.png", "evidence_id": "ev_001" }
+```
+
+Re-sending the identical file is idempotent: `200` with
+`already_present: true`, no duplicate file, no record change beyond
+`stored_path`.
+
+### Errors (sanitized — no paths, no secrets)
+
+| Status | Code | Meaning |
+|---|---|---|
+| 401 | `ADMIN_TOKEN_INVALID` | missing/wrong header |
+| 503 | `ADMIN_TOKEN_NOT_CONFIGURED` | token not set on the server |
+| 404 | `UPLOAD_NOT_FOUND` | unknown upload id |
+| 409 | `CASE_MISMATCH` | upload belongs to another case |
+| 409 | `UPLOAD_INTEGRITY_METADATA_MISSING` | no trusted size/SHA-256 |
+| 409 | `DESTINATION_EXISTS` | a **different** file is already there; it is not overwritten |
+| 422 | `SIZE_MISMATCH` / `SHA256_MISMATCH` | bytes do not match the record |
+| 413 | `FILE_TOO_LARGE` | above `MAX_UPLOAD_BYTES` |
+| 415 | `UNSUPPORTED_FILE_TYPE` | not an allow-listed image/PDF |
+| 400 | `UNSAFE_PATH` / `EMPTY_FILE` | identifier or payload rejected |
+
+Nothing is created — no new Upload, EvidenceItem or Case — and case id, upload
+id, evidence ids, revisions and human decisions are untouched. No CREAO or Gmail
+call is made.
+
+---
+
+## 6k. Render deployment notes
+
+- **The filesystem is ephemeral.** Anything written to `UPLOAD_DIR` (including a
+  restored file) disappears on the next deploy or instance restart, and free
+  instances also restart after idle. A restore is therefore valid *for the life
+  of that instance*; after a redeploy you must restore again, or attach a Render
+  Disk / move evidence to an object store.
+- The snapshot (`GET /api/admin/export`) never contains bytes — always keep the
+  original files alongside it.
+- `ADMIN_TOKEN` must be set in Render → Environment; the admin routes fail closed
+  without it.
+
 ---
 
 ## 7. Comments, events and export
