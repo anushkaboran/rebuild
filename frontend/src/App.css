@@ -2,7 +2,9 @@
 .skip-link { position: fixed; top: -80px; left: 24px; z-index: 20; padding: 12px; background: #fff; color: var(--ink); border-radius: 8px; }
 .skip-link:focus { top: 12px; }
 .topbar { width: min(1280px, calc(100% - 88px)); min-height: 110px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; gap: 30px; border-bottom: 1px solid #3b4469; }
-.brand { display: inline-flex; align-items: baseline; color: #fff; font-size: 33px; font-weight: 800; letter-spacing: -1.8px; text-decoration: none; line-height: 1; }
+.brand { position: relative; isolation: isolate; flex-shrink: 0; display: inline-flex; align-items: baseline; color: #fff; font-size: 33px; font-weight: 800; letter-spacing: -1.8px; text-decoration: none; line-height: 1; }
+.brand-roof { position: absolute; top: 42%; left: 50%; width: calc(100% + 24px); height: auto; transform: translate(-50%, -50%); color: var(--orange); opacity: .28; pointer-events: none; }
+.brand-wordmark { position: relative; z-index: 1; }
 .brand-dot { color: var(--orange); }
 .main-nav { display: flex; align-items: stretch; gap: 18px; }
 .nav-item { position: relative; gap: 7px; padding: 15px 0; border: 0; border-radius: 0; color: #b9c2df; font-size: 12px; font-weight: 550; white-space: nowrap; }

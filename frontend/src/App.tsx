@@ -88,7 +88,12 @@ function App() {
     <MotionConfig reducedMotion="user"><div className="app-shell" data-view={view}>
       <a href="#main-content" className="skip-link">Skip to workspace</a>
       <header className="topbar">
-        <a className="brand" href="#overview" onClick={event => { event.preventDefault(); navigate('overview') }}>rebuild<span className="brand-dot">.</span></a>
+        <a className="brand" href="#overview" onClick={event => { event.preventDefault(); navigate('overview') }}>
+          <svg className="brand-roof" viewBox="0 0 140 80" fill="none" aria-hidden="true" focusable="false">
+            <path d="m10 41 60-32 60 32M24 34v33h92V34M99 24V14h12v17" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+          </svg>
+          <span className="brand-wordmark">rebuild<span className="brand-dot">.</span></span>
+        </a>
         <nav className="main-nav" aria-label="Workspace navigation">
           {navItems.map((item, index) => <button key={item.id} className={`nav-item ${view === item.id ? 'is-active' : ''}`} aria-current={view === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}><span className="nav-step">0{index + 1}</span><span>{item.label}</span>{item.id === 'evidence' && fileCount > 0 && <span className="nav-count">{fileCount}</span>}</button>)}
         </nav>
