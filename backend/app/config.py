@@ -117,6 +117,9 @@ class Settings(BaseSettings):
     # Optional shared secret for /api/admin/* (export/import). When unset the
     # routes are limited to loopback callers.
     admin_token: str = ""
+    # /api/admin/evidence/{id}/check — short timeout, bounded read.
+    admin_check_timeout_seconds: float = 10.0
+    admin_check_max_bytes: int = 25 * 1024 * 1024
     spacetimedb_url: str = "http://127.0.0.1:3000"
     spacetimedb_db: str = "rebuild"
 
