@@ -71,5 +71,9 @@ def get_upload_file(upload_id: str) -> FileResponse:
     return FileResponse(
         path,
         media_type=upload.content_type or storage.guessed_content_type(path),
-        filename=upload.original_filename,
+        headers={
+            "Content-Disposition": storage.content_disposition(
+                upload.original_filename, disposition="attachment"
+            )
+        },
     )

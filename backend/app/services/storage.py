@@ -12,8 +12,11 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import HTTPException, UploadFile, status
 
@@ -149,6 +152,43 @@ def resolve_upload_path(upload) -> Path | None:
             if candidate.is_file() and candidate.stem == upload_id:
                 return candidate
     return None
+
+
+def ascii_filename(filename: str | None) -> str:
+    """An ASCII-safe, header-safe fallback for a download filename."""
+    name = (filename or "").strip() or "download"
+    suffix = Path(name).suffix
+    stem_source = name[: -len(suffix)] if suffix else name
+
+    stem = unicodedata.normalize("NFKD", stem_source).encode("ascii", "ignore").decode("ascii")
+    # Never let quotes, backslashes or newlines break out of the header value.
+    stem = re.sub(r'[\r\n"\\]', "_", stem)
+    stem = re.sub(r"\s+", " ", stem).strip(" ._-")
+    if not stem:
+        # Nothing ASCII survived (e.g. a fully CJK name): keep the extension so
+        # the fallback still says what the file is.
+        stem = "download"
+    return stem + (suffix if suffix.isascii() else "")
+
+
+def content_disposition(filename: str | None, *, disposition: str = "attachment") -> str:
+    """RFC 6266 / RFC 5987 Content-Disposition.
+
+    Every HTTP header value is latin-1 encodable. Uploaded filenames are not:
+    `Screenshot … 11.31.08\u202fPM.png` contains U+202F (narrow no-break space)
+    and writing it raw raises `UnicodeEncodeError` deep inside the ASGI server,
+    surfacing as HTTP 500. So the header always carries an ASCII `filename`
+    fallback, plus `filename*=UTF-8''…` when the real name is not ASCII — which
+    keeps the download understandable without ever putting raw Unicode in a
+    latin-1 header.
+    """
+    fallback = ascii_filename(filename)
+    if filename is None or fallback == filename:
+        return f'{disposition}; filename="{fallback}"'
+    return (
+        f'{disposition}; filename="{fallback}"; '
+        f"filename*=UTF-8''{quote(filename, safe='')}"
+    )
 
 
 def guessed_content_type(path: Path) -> str:

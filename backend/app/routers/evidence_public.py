@@ -94,7 +94,9 @@ def public_claim_pdf(
         media_type="application/pdf",
         headers={
             **_NO_CACHE,
-            "Content-Disposition": f'attachment; filename="{submission.pdf_filename or "recovery-inventory.pdf"}"',
+            "Content-Disposition": storage.content_disposition(
+                submission.pdf_filename or "recovery-inventory.pdf"
+            ),
         },
     )
 
@@ -132,5 +134,12 @@ def public_upload(
     return FileResponse(
         path,
         media_type=upload.content_type or storage.guessed_content_type(path),
-        headers={"Content-Disposition": f'inline; filename="{upload.original_filename}"', **_NO_CACHE},
+        # Header built by the shared helper: ASCII fallback + RFC 5987 filename*.
+        # `filename=` is deliberately NOT passed, so our header wins.
+        headers={
+            "Content-Disposition": storage.content_disposition(
+                upload.original_filename, disposition="inline"
+            ),
+            **_NO_CACHE,
+        },
     )
