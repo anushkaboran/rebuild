@@ -7,7 +7,7 @@ from fastapi.responses import Response
 
 from ..deps import get_case_or_404
 from ..models import utcnow
-from ..services import events, pdf
+from ..services import events, pdf, storage
 from ..store import store
 
 router = APIRouter(prefix="/api", tags=["export"])
@@ -49,7 +49,7 @@ def export_case_pdf(case_id: str) -> Response:
         content=blob,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Disposition": storage.content_disposition(filename),
             "X-Rebuild-Item-Count": str(len(items)),
         },
     )
