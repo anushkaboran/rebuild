@@ -234,7 +234,7 @@ export default function Inventory({ caseId, simulated = false, activeView = 'inv
   const selected = displayedItems.find(item => item.item_id === selectedId)
   const isResolved = (id: string, status: string) => status === 'resolved' || Boolean(resolutions[id])
   const openFindings = records?.findings.filter(finding => !isResolved(finding.finding_id, finding.status)) ?? []
-  const openQuestions = records?.questions.filter(question => !isResolved(question.question_id, question.status)) ?? []
+  const openQuestions = records?.questions.filter(question => !question.answer?.trim() && !isResolved(question.question_id, question.status)) ?? []
   const openTaskCount = openFindings.length + openQuestions.length
   const confirmedFieldCount = displayedItems.reduce((count, item) => count + item.user_confirmed_fields.length, 0)
   const itemTaskCount = (id: string) => openFindings.filter(finding => finding.item_ids.includes(id)).length + openQuestions.filter(question => question.item_id === id).length

@@ -136,8 +136,10 @@ export default function BackendReview({ caseId, itemId, investigationId,
 }) {
   const [tab, setTab] = useState<'questions' | 'findings'>('questions')
   const [includeCase, setIncludeCase] = useState(false)
+  const [showAnswered, setShowAnswered] = useState(false)
   const records: DecisionRecord[] = tab === 'questions'
     ? (questions as SavedQuestion[]).filter(q =>
+        (showAnswered || !q.answer?.trim()) &&
         (!investigationId || q.question_id.startsWith(investigationId + ':')) &&
         (q.item_id === itemId || (includeCase && !q.item_id)),
       ).map(q => ({ ...q, ref: q.question_id, title: q.question, context: q.reason }))
@@ -161,10 +163,16 @@ export default function BackendReview({ caseId, itemId, investigationId,
           onChange={event => setIncludeCase(event.target.checked)} />
         Include case-wide issues
       </label></div>
+      {tab === 'questions' && <div className="review-filters"><label>
+        <input type="checkbox" checked={showAnswered}
+          onChange={event => setShowAnswered(event.target.checked)} />
+        Show answered questions
+      </label></div>}
       {records.map(record => <DecisionCard
         key={record.ref + ':' + record.revision}
         record={record} caseId={caseId} kind={tab} onSaved={onSaved} />)}
-      {!records.length && <p>No records in this view.</p>}
+      {!records.length && <p role="status">{tab === 'questions' && !showAnswered
+        ? 'No unanswered questions in this view.' : 'No records in this view.'}</p>}
       <p className="helper">
         Answers and decisions are saved separately from item confirmations.
         Saving does not start another CREAO run.
